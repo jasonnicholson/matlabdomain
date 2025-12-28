@@ -89,7 +89,6 @@ git clone https://github.com/sphinx-contrib/matlabdomain.git
 cd matlabdomain
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .
 pip install -r dev-requirements.txt
 pip install -r rtd-requirements.txt
 pre-commit install

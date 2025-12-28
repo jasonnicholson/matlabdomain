@@ -390,7 +390,7 @@ To be documented - identify specific issues in GitHub issues or code comments.
    ```bash
    # Convert dev-requirements.txt
    uv pip compile dev-requirements.txt -o requirements-dev.lock
-   
+
    # Install from lock file
    uv pip install -r requirements-dev.lock
    ```

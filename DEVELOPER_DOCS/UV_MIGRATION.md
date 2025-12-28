@@ -300,7 +300,7 @@ commands =
    ```bash
    # Simulate GitHub Actions locally
    act -j build  # Requires https://github.com/nektos/act
-   
+
    # Or manually test the commands
    uv sync --group test
    uv run pytest
@@ -392,7 +392,7 @@ git stash pop
 ## Estimated Timeline
 
 - Phase 1: Install uv - 5 min
-- Phase 2-3: Update pyproject.toml - 30 min  
+- Phase 2-3: Update pyproject.toml - 30 min
 - Phase 4: Generate lock file - 5 min
 - Phase 5: Test locally - 15 min
 - Phase 6: Update CI - 15 min

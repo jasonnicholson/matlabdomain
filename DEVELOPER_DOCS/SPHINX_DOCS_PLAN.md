@@ -121,12 +121,12 @@ classdef Example
     %
     % This class shows the recommended format for docstrings
     % compatible with sphinxcontrib-matlabdomain.
-    
+
     properties
         prop1   % First property description
         prop2   % Second property with more details
     end
-    
+
     methods
         function obj = Example(prop1, prop2)
             % Constructor
@@ -143,11 +143,11 @@ classdef Example
             % Create an instance::
             %
             %     obj = Example(1, 2);
-            
+
             obj.prop1 = prop1;
             obj.prop2 = prop2;
         end
-        
+
         function out = myMethod(obj, arg1)
             % Brief description of myMethod.
             %

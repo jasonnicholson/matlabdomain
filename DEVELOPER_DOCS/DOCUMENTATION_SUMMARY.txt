@@ -12,14 +12,14 @@ contribute to, and improve this project. Here's what's available:
    - Master index of all documentation
    - Quick navigation by task
    - Learning paths for different roles
-   
+
 ✅ ONBOARDING.md
    - Project overview (what is it?)
    - Documentation index
    - Quick start (5 minutes)
    - What to do next (4 options)
    - Key concepts to understand
-   
+
 ✅ DEVELOPER_GUIDE.md (MOST COMPREHENSIVE)
    - Project overview and stats
    - Complete project structure
@@ -28,27 +28,27 @@ contribute to, and improve this project. Here's what's available:
    - CI/CD configuration
    - Step-by-step development setup
    - Tool configurations
-   
+
 ✅ IMPLEMENTATION_GUIDE.md
    - 3 Known TODOs with fixes
    - Test ordering issues
    - Recent bug fixes
    - Architecture notes
    - Priority action items
-   
+
 ✅ UV_MIGRATION.md
    - Why migrate to uv
    - 8-phase implementation plan
    - CI/CD workflow updates
    - ~2 hours estimated effort
-   
+
 ✅ SPHINX_DOCS_PLAN.md
    - Documentation site strategy
    - 10 key pages to create
    - Content outlines
    - Visual improvements
    - Maintenance plan
-   
+
 ✅ QUICK_REFERENCE.md
    - Essential commands
    - Common workflows
@@ -78,11 +78,11 @@ Option 1: Understand the Codebase
   → Explore sphinxcontrib/matlab.py
   → Run: pytest
 
-Option 2: Fix Known Bugs  
+Option 2: Fix Known Bugs
   → Read IMPLEMENTATION_GUIDE.md (30 min)
   → Pick a TODO to fix
   → Write tests and implement
-  
+
 Option 3: Improve Documentation
   → Read SPHINX_DOCS_PLAN.md (40 min)
   → Create .rst files in docs/
@@ -185,7 +185,7 @@ open docs/_build/html/index.html          # View docs
 
 You now have:
   ✅ Complete project overview
-  ✅ Architecture documentation  
+  ✅ Architecture documentation
   ✅ Setup instructions
   ✅ Known bugs identified
   ✅ Modernization plans

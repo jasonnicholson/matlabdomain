@@ -1,3 +1,4 @@
+# Development requirements for the project
 -e .
 pytest
 pytest-cov

@@ -58,18 +58,18 @@ Use this checklist when testing on your Windows machine.
 
 ## Share Results
 
-- [ ] Copy these files to share:
-  - [ ] `windows-test-full.txt`
-  - [ ] `windows-diagnostic-output.txt`
-  - [ ] `WINDOWS_ISSUES.md`
-  - [ ] Screenshots (if helpful)
+- [x] Copy these files to share:
+  - [x] `windows-test-full.txt`
+  - [x] `windows-diagnostic-output.txt`
+  - [x] `WINDOWS_ISSUES.md`
+  - [x] Screenshots (if helpful)
 
 ## After Fixes
 
-- [ ] Pull latest fixes from Linux machine
-- [ ] Re-run tests: `python -m pytest -v`
-- [ ] Verify all tests pass
-- [ ] Document any remaining issues
+- [x] Pull latest fixes from Linux machine
+- [x] Re-run tests: `python -m pytest -v`
+- [x] Verify all tests pass
+- [x] Document any remaining issues
 
 ## Notes
 

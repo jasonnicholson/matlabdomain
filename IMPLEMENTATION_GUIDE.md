@@ -11,7 +11,7 @@ This document outlines the current implementation state, known issues, and areas
 
 **Issue**: Find and document method attributes defined in classfolder class definition.
 
-**Context**: 
+**Context**:
 - MATLAB supports `@ClassFolder` syntax where methods are defined in separate files
 - Currently extracting method attributes from method files, but missing attributes from the class definition file
 - Should parse the main class file for `methods (Attributes)` blocks
@@ -224,6 +224,64 @@ Tox tests against:
 
 ---
 
+## Feature Requests
+
+### 1. **matlab-apidoc Utility** (NEW)
+**Priority**: Medium - Developer Experience Enhancement
+
+**Problem**:
+- `sphinx-apidoc` only works for Python code
+- MATLAB projects require manually writing `.rst` files with `.. mat:automodule::` directives
+- No automated way to generate documentation structure for MATLAB codebases
+
+**Proposed Solution**:
+Create a `matlab-apidoc` command-line utility similar to `sphinx-apidoc`:
+
+```bash
+matlab-apidoc -o docs/api /path/to/matlab/src
+```
+
+**Features**:
+1. Scan MATLAB source directory (respects `matlab_src_dir` setting)
+2. Discover MATLAB structure:
+   - Packages (`+package/` folders)
+   - Classes (`.m` files with `classdef`)
+   - Functions (`.m` files without `classdef`)
+   - Class folders (`@ClassName/` folders)
+   - Scripts
+3. Generate `.rst` files with appropriate directives:
+   ```rst
+   .. mat:automodule:: +mypackage
+      :members:
+      :undoc-members:
+
+   .. mat:autoclass:: MyClass
+      :members:
+      :show-inheritance:
+   ```
+4. Create hierarchical documentation structure
+5. Generate index/toctree files
+
+**Implementation Notes**:
+- ~200-300 lines of Python code
+- Entry point in `setup.py` console_scripts
+- Reuse `MatModuleAnalyzer` to discover MATLAB entities
+- Template-based `.rst` generation (configurable)
+- Support exclusion patterns (like `.gitignore`)
+- Dry-run mode to preview changes
+
+**Benefits**:
+- Significantly improves developer experience
+- Reduces manual work for large MATLAB projects
+- Makes migration from MATLAB's built-in doc system easier
+- Similar workflow to Python projects
+
+**Related**:
+- Would work well with existing autodoc directives
+- Could integrate with Sphinx's `autosummary` for index pages
+
+---
+
 ## Priority Action Items
 
 ### High Priority
@@ -236,6 +294,7 @@ Tox tests against:
 2. [ ] Add caching/memoization for analyzer
 3. [ ] Expand test coverage for edge cases
 4. [ ] Performance profiling on large projects
+5. [ ] **NEW**: Implement matlab-apidoc utility
 
 ### Low Priority
 1. [ ] Configuration improvements

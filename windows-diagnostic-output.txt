@@ -1,0 +1,55 @@
+matlabdomain on  master [!?] via 🐍 v3.14.0 (.venv)
+❯ python DEVELOPER_DOCS\test_paths_windows.py
+================================================================================
+WINDOWS PATH DIAGNOSTIC
+================================================================================
+
+Python version: 3.14.0 (tags/v3.14.0:ebf955d, Oct  7 2025, 10:15:03) [MSC v.1944 64 bit (AMD64)]
+Platform: win32
+os.name: nt
+os.sep: '\\'
+os.pathsep: ';'
+os.linesep: '\r\n'
+
+================================================================================
+PATH OPERATIONS TEST
+================================================================================
+
+1. Unix-style path: test_data/+package/func.m
+   With os.sep:     test_data\+package\func.m
+   Path object:     test_data\+package\func.m
+   Path as string:  test_data\+package\func.m
+   Path.as_posix(): test_data/+package/func.m
+
+2. Module name: +package.+subpkg.func
+   Replace . with os.sep: +package\+subpkg\func
+   As Path object:        +package\+subpkg\func
+   Path as string:        +package\+subpkg\func
+
+3. Windows path: test_data\+package\func.m
+   Replace \ with .:   test_data.+package.func.m
+   Using Path.as_posix(): test_data/+package/func.m
+   Then replace / with .: test_data.+package.func.m
+
+================================================================================
+FILE SYSTEM TEST
+================================================================================
+
+Test directory: C:\Users\jason\workspaces\matlabdomain\DEVELOPER_DOCS\tests\test_data
+Exists: False
+Is directory: False
+
+ERROR: Test directory not found!
+Make sure you're running this from the project root
+================================================================================
+POTENTIAL ISSUES
+================================================================================
+
+⚠ Windows backslash (\) may cause issues with string replace operations
+  Recommendation: Use pathlib.Path instead of string operations
+⚠ Windows uses CRLF line endings
+  Check .gitattributes is working correctly
+
+================================================================================
+END DIAGNOSTIC
+================================================================================

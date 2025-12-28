@@ -1,0 +1,22 @@
+=========================================== test session starts ===========================================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\jason\workspaces\matlabdomain\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\jason\workspaces\matlabdomain
+configfile: pytest.ini
+plugins: cov-7.0.0
+collecting ... collected 0 items / 1 error
+
+================================================= ERRORS ==================================================
+_______________________________ ERROR collecting tests/test_parse_mfile.py ________________________________
+tests\test_parse_mfile.py:7: in <module>
+    from sphinxcontrib import mat_types
+sphinxcontrib\mat_types.py:27: in <module>
+    logger = sphinx.util.logging.getLogger("matlab-domain")
+             ^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\sphinx\util\__init__.py:164: in __getattr__
+    raise AttributeError(msg)
+E   AttributeError: module 'sphinx.util' has no attribute 'logging'
+========================================= short test summary info =========================================
+ERROR tests/test_parse_mfile.py - AttributeError: module 'sphinx.util' has no attribute 'logging'
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+============================================ 1 error in 0.38s =============================================

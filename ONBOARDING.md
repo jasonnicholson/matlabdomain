@@ -91,6 +91,7 @@ python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e .
 pip install -r dev-requirements.txt
+pip install -r rtd-requirements.txt
 pre-commit install
 
 # 2. Run tests to verify setup
@@ -275,7 +276,7 @@ tox
 ### Pre-Commit Hooks
 Automated checks run before each commit:
 - ✅ Code formatting (ruff)
-- ✅ Spelling (codespell)  
+- ✅ Spelling (codespell)
 - ✅ Trailing whitespace
 - ✅ YAML validation
 

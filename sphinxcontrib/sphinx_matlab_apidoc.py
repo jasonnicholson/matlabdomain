@@ -8,7 +8,7 @@ Generate reStructuredText files for MATLAB source code documentation.
 Similar to sphinx-apidoc but specifically designed for MATLAB projects.
 Generates RST files per namespace and limits to 50 code files per page.
 
-:copyright: Copyright 2024 by the sphinxcontrib-matlabdomain team.
+:copyright: Copyright 2025 by the sphinxcontrib-matlabdomain team.
 :license: BSD, see LICENSE for details.
 """
 
@@ -17,9 +17,9 @@ import os
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
-MATLAB_EXTENSIONS = {".m"}
+MATLAB_EXTENSIONS = {".m", ".mlapp"}
 MAX_FILES_PER_PAGE = 50
 
 
@@ -54,12 +54,10 @@ def get_namespace_from_path(file_path: Path, source_dir: Path) -> str:
 
     namespace_parts = []
     for part in parts:
-        if part.startswith("+"):
-            # Remove the + prefix for namespace
+        if part.startswith("+") or part.startswith("@"):
             namespace_parts.append(part[1:])
-        elif part.startswith("@"):
-            # Class folders - include without @
-            namespace_parts.append(part[1:])
+        else:
+            namespace_parts.append(part)
 
     if namespace_parts:
         return ".".join(namespace_parts)
@@ -79,94 +77,119 @@ def organize_by_namespace(
     return dict(namespace_files)
 
 
+def sanitize_module_name(relative_path: Path) -> str:
+    """Convert a MATLAB file path to a matlabdomain target name."""
+
+    module_name = str(relative_path).replace(os.sep, ".")
+    # Remove + for packages, keep @ for class folders
+    module_name = module_name.replace("+", "")
+    # Sanitize special characters
+    module_name = module_name.replace("-", "_")
+    module_name = module_name.replace("(", "").replace(")", "").replace(" ", "_")
+    # Prefix leading digits in path segments
+    parts = module_name.split(".")
+    parts = ["m_" + p if p and p[0].isdigit() else p for p in parts]
+    return ".".join(parts)
+
+
+def detect_item_type(file_path: Path) -> str:
+    """Heuristically determine whether the MATLAB file is a class, function, script, or app."""
+
+    if file_path.suffix.lower() == ".mlapp":
+        return "app"
+    # TODO this is too simple. It needs improved.
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("%"):
+                    continue
+                lower = stripped.lower()
+                if lower.startswith("classdef"):
+                    return "class"
+                if lower.startswith("function"):
+                    return "function"
+                return "script"
+    except OSError:
+        return "script"
+
+    return "script"
+
+
 def generate_module_rst(
-    files: List[Path],
-    source_dir: Path,
+    items: List[Tuple[str, str]],
     namespace: str,
     page_num: int = 0,
     total_pages: int = 1,
 ) -> str:
-    """Generate RST content for a module/namespace."""
+    """Generate RST content for a module/namespace page."""
 
-    # Create title
-    if namespace == "root":
-        if total_pages > 1:
-            title = f"Root Module (Page {page_num + 1}/{total_pages})"
-        else:
-            title = "Root Module"
-    else:
-        if total_pages > 1:
-            title = f"{namespace} (Page {page_num + 1}/{total_pages})"
-        else:
-            title = namespace
-
-    underline = "=" * len(title)
+    is_root = namespace == "root"
+    ns_title = "Global Namespace" if is_root else f"{namespace} Namespace"
+    if total_pages > 1:
+        ns_title = f"{ns_title} (Page {page_num + 1}/{total_pages})"
 
     lines = [
-        title,
-        underline,
+        ns_title,
+        "=" * len(ns_title),
+        "",
+        ".. contents:: Table of Contents",
+        "   :depth: 10",
+        "   :local:",
         "",
     ]
 
-    # Add navigation if multiple pages
-    if total_pages > 1:
-        lines.append(".. contents:: Contents")
-        lines.append("   :local:")
-        lines.append("   :depth: 1")
-        lines.append("")
+    grouped = {"class": [], "function": [], "script": [], "app": []}
+    for name, kind in items:
+        grouped.setdefault(kind, []).append(name)
 
-        # Add links to other pages
-        nav_links = []
-        for i in range(total_pages):
-            if i != page_num:
-                page_name = get_rst_filename(namespace, i, total_pages)
-                nav_links.append(f"   {page_name}")
+    sections = [
+        (
+            "Classes",
+            "class",
+            "mat:autoclass",
+            [
+                "   :show-inheritance:",
+                "   :members:",
+                "   :private-members:",
+                "   :special-members:",
+                "   :undoc-members:",
+            ],
+        ),
+        ("Functions", "function", "mat:autofunction", []),
+        ("Scripts", "script", "mat:autoscript", []),
+        ("Apps", "app", "mat:autoscript", []),
+    ]
 
-        if nav_links:
-            lines.append("Other pages:")
+    for section_title, key, directive, extra_opts in sections:
+        if not grouped.get(key):
+            continue
+        lines.extend([section_title, "-" * len(section_title), ""])
+        for target in sorted(grouped[key]):
+            heading = f"Function Reference: {target}"
+            lines.append(heading)
+            lines.append("^" * len(heading))
             lines.append("")
-            lines.extend(nav_links)
+            lines.append(f".. {directive}:: {target}")
+            lines.extend(extra_opts)
+            if extra_opts:
+                lines.append("")
             lines.append("")
-
-    # Add automodule directives for each file
-    for file_path in files:
-        relative_path = file_path.relative_to(source_dir)
-        module_name = str(relative_path.with_suffix("")).replace(os.sep, ".")
-
-        # Remove + and @ prefixes from module name
-        module_name = module_name.replace("+", "").replace("@", "")
-
-        # Bug fix: Sanitize module name for special characters
-        # Replace hyphens with underscores
-        module_name = module_name.replace("-", "_")
-        # Remove parentheses and spaces
-        module_name = module_name.replace("(", "").replace(")", "").replace(" ", "_")
-        # Handle leading digits by prefixing with 'm_' (for 'module_')
-        parts = module_name.split(".")
-        parts = ["m_" + p if p and p[0].isdigit() else p for p in parts]
-        module_name = ".".join(parts)
-
-        lines.append(f".. automodule:: {module_name}")
-        lines.append("   :members:")
-        lines.append("   :undoc-members:")
-        lines.append("   :show-inheritance:")
-        lines.append("")
 
     return "\n".join(lines)
 
 
 def get_rst_filename(namespace: str, page_num: int = 0, total_pages: int = 1) -> str:
     """Generate RST filename for a namespace and page number."""
-    namespace_safe = namespace.replace(".", "_")
+    base = "global_namespace" if namespace == "root" else namespace.replace(".", "_")
 
     if total_pages > 1:
-        return f"{namespace_safe}_page{page_num + 1}.rst"
-    else:
-        return f"{namespace_safe}.rst"
+        return f"{base}_{page_num + 1}.rst"
+    return f"{base}.rst"
 
 
 def generate_index_rst(
-    namespace_files: Dict[str, List[Path]], output_dir: Path, max_files_per_page: int
+    namespace_items: Dict[str, List[Tuple[str, str]]], max_files_per_page: int
 ) -> str:
     """Generate the main index.rst file."""
     lines = [
@@ -180,11 +203,11 @@ def generate_index_rst(
     ]
 
     # Sort namespaces
-    sorted_namespaces = sorted(namespace_files.keys())
+    sorted_namespaces = sorted(namespace_items.keys())
 
     for namespace in sorted_namespaces:
-        files = namespace_files[namespace]
-        total_pages = (len(files) + max_files_per_page - 1) // max_files_per_page
+        items = namespace_items[namespace]
+        total_pages = (len(items) + max_files_per_page - 1) // max_files_per_page
 
         if total_pages > 1:
             for page_num in range(total_pages):
@@ -213,8 +236,7 @@ def generate_index_rst(
 
 
 def write_rst_files(
-    namespace_files: Dict[str, List[Path]],
-    source_dir: Path,
+    namespace_items: Dict[str, List[Tuple[str, str]]],
     output_dir: Path,
     max_files_per_page: int,
     dry_run: bool = False,
@@ -225,7 +247,7 @@ def write_rst_files(
         output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate index.rst
-    index_content = generate_index_rst(namespace_files, output_dir, max_files_per_page)
+    index_content = generate_index_rst(namespace_items, max_files_per_page)
     index_path = output_dir / "index.rst"
 
     if dry_run:
@@ -236,28 +258,28 @@ def write_rst_files(
         print(f"Created: {index_path}")
 
     # Generate RST files for each namespace
-    for namespace, files in sorted(namespace_files.items()):
-        total_pages = (len(files) + max_files_per_page - 1) // max_files_per_page
+    for namespace, items in sorted(namespace_items.items()):
+        total_pages = (len(items) + max_files_per_page - 1) // max_files_per_page
 
-        print(f"\nNamespace '{namespace}': {len(files)} files, {total_pages} page(s)")
+        print(f"\nNamespace '{namespace}': {len(items)} files, {total_pages} page(s)")
 
         for page_num in range(total_pages):
             start_idx = page_num * max_files_per_page
-            end_idx = min(start_idx + max_files_per_page, len(files))
-            page_files = files[start_idx:end_idx]
+            end_idx = min(start_idx + max_files_per_page, len(items))
+            page_items = items[start_idx:end_idx]
 
             rst_content = generate_module_rst(
-                page_files, source_dir, namespace, page_num, total_pages
+                page_items, namespace, page_num, total_pages
             )
             rst_filename = get_rst_filename(namespace, page_num, total_pages)
             rst_path = output_dir / rst_filename
 
             if dry_run:
-                print(f"  Would create: {rst_path} ({len(page_files)} files)")
+                print(f"  Would create: {rst_path} ({len(page_items)} files)")
             else:
                 with open(rst_path, "w", encoding="utf-8") as f:
                     f.write(rst_content)
-                print(f"  Created: {rst_path} ({len(page_files)} files)")
+                print(f"  Created: {rst_path} ({len(page_items)} files)")
 
 
 def main():
@@ -338,15 +360,23 @@ Example usage:
 
     print(f"Found {len(matlab_files)} MATLAB file(s)")
 
-    # Organize by namespace
+    # Organize by namespace and type
     namespace_files = organize_by_namespace(matlab_files, args.source_dir)
+    namespace_items: Dict[str, List[Tuple[str, str]]] = {}
+    for ns, files in namespace_files.items():
+        entries: List[Tuple[str, str]] = []
+        for file_path in files:
+            rel = file_path.relative_to(args.source_dir).with_suffix("")
+            module_name = sanitize_module_name(rel)
+            item_type = detect_item_type(file_path)
+            entries.append((module_name, item_type))
+        namespace_items[ns] = entries
 
-    print(f"Organized into {len(namespace_files)} namespace(s)")
+    print(f"Organized into {len(namespace_items)} namespace(s)")
 
     # Write RST files
     write_rst_files(
-        namespace_files,
-        args.source_dir,
+        namespace_items,
         args.output_dir,
         max_files_per_page,
         args.dry_run,

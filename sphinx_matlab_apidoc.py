@@ -136,6 +136,16 @@ def generate_module_rst(
         # Remove + and @ prefixes from module name
         module_name = module_name.replace("+", "").replace("@", "")
 
+        # Bug fix: Sanitize module name for special characters
+        # Replace hyphens with underscores
+        module_name = module_name.replace("-", "_")
+        # Remove parentheses and spaces
+        module_name = module_name.replace("(", "").replace(")", "").replace(" ", "_")
+        # Handle leading digits by prefixing with 'm_' (for 'module_')
+        parts = module_name.split(".")
+        parts = ["m_" + p if p and p[0].isdigit() else p for p in parts]
+        module_name = ".".join(parts)
+
         lines.append(f".. automodule:: {module_name}")
         lines.append("   :members:")
         lines.append("   :undoc-members:")

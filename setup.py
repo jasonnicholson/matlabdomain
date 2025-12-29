@@ -42,4 +42,10 @@ setup(
     include_package_data=True,
     install_requires=requires,
     namespace_packages=["sphinxcontrib"],
+    entry_points={
+        "console_scripts": [
+            "sphinx-matlab-apidoc=sphinx_matlab_apidoc:main",
+        ],
+    },
+    py_modules=["sphinx_matlab_apidoc"],
 )

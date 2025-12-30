@@ -1,0 +1,18 @@
+# Temporary directories created during test runs
+matlab_test_*/
+test_output/
+.pytest_cache/
+__pycache__/
+
+# Build artifacts
+build/
+dist/
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# IDE files
+.vscode/
+.idea/
+*.pyc

@@ -1,0 +1,24 @@
+{
+  "projects": [
+  {
+    "url": "https://github.com/NeurodataWithoutBorders/matnwb.git",
+    "matlab_src_dir": "."
+  },
+  {
+    "url": "https://github.com/VH-Lab/vhlab-toolbox-matlab.git",
+    "matlab_src_dir": "."
+  },
+  {
+    "url": "https://github.com/WEC-Sim/WEC-Sim.git",
+    "matlab_src_dir": "."
+  },
+  {
+    "url": "https://github.com/WEC-Sim/WEC-Sim_Applications.git",
+    "matlab_src_dir": "."
+  },
+  {
+    "url": "https://github.com/jasonnicholson/regularizeNd.git",
+    "matlab_src_dir": "source/"
+  }
+]
+}

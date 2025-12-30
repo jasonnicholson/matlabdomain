@@ -99,7 +99,7 @@ def detect_item_type(file_path: Path) -> str:
         return "app"
     # TODO this is too simple. It needs improved.
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 stripped = line.strip()
                 if not stripped or stripped.startswith("%"):

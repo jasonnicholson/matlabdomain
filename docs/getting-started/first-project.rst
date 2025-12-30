@@ -242,7 +242,7 @@ previewing as you edit your docstrings and RST files.
 
 
 Step 5: Generate API docs with ``sphinx-matlab-apidoc``
-======================================================
+========================================================
 
 Instead of hand-writing ``api.rst``, generate it automatically from your MATLAB
 sources using the bundled ``sphinx-matlab-apidoc`` CLI.
@@ -280,7 +280,7 @@ toctree includes the generated entry:
       api/index
 
 Regenerate after adding or deleting source files
---------------------------------
+--------------------------------------------------
 
 When add or delete MATLAB files, re-run ``sphinx-matlab-apidoc -f -o api ../src`` to
 refresh the generated ``.rst`` files before rebuilding HTML. You do not need to rerun if

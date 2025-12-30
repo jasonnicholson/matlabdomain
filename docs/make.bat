@@ -7,11 +7,17 @@ REM Command file for Sphinx documentation
 if "%SPHINXBUILD%" == "" (
 	set SPHINXBUILD=sphinx-build
 )
+if "%SPHINXAUTOBUILD%" == "" (
+	set SPHINXAUTOBUILD=sphinx-autobuild
+)
 set SOURCEDIR=.
 set BUILDDIR=_build
 set SPHINXPROJ=sphinxcontrib-matlabdomain
 
 if "%1" == "" goto help
+
+if "%1" == "livehtml" goto livehtml
+if "%1" == "autobuild-html" goto livehtml
 
 %SPHINXBUILD% >NUL 2>NUL
 if errorlevel 9009 (
@@ -27,6 +33,10 @@ if errorlevel 9009 (
 )
 
 %SPHINXBUILD% -M %1 %SOURCEDIR% %BUILDDIR% %SPHINXOPTS%
+goto end
+
+:livehtml
+%SPHINXAUTOBUILD% -b html %SOURCEDIR% %BUILDDIR%/html %SPHINXOPTS%
 goto end
 
 :help

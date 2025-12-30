@@ -2,6 +2,7 @@
 # Quick reference for running slow integration tests
 
 # Run all slow tests (add -m slow because default addopts skip slow)
+# Artifacts are kept under test_slow/artifacts/<project>/ (repo + docs/source)
 pytest test_slow/ -v -s -m slow
 
 # Run only a specific project test (filter by repo name or URL substring)

@@ -21,8 +21,8 @@ import os
 # -- Project information -----------------------------------------------------
 
 project = "sphinxcontrib-matlabdomain"
-copyright = "2018, Jørgen Cederberg"
-author = "Jørgen Cederberg"
+copyright = "2018-2025, Jørgen Cederberg and contributors"
+author = "Jørgen Cederberg and contributors"
 
 # The short X.Y version
 version = ""
@@ -69,7 +69,8 @@ language = "en"
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "sphinx"
+# options: https://pygments.org/styles/
+pygments_style = "friendly"
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -83,7 +84,10 @@ html_theme = "sphinx_rtd_theme"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    "navigation_depth": 4,
+    "collapse_navigation": False,
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

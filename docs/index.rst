@@ -1,95 +1,99 @@
-.. sphinxcontrib-matlabdomain documentation master file, created by
-   sphinx-quickstart on Tue Jul 17 11:53:15 2018.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+.. sphinxcontrib-matlabdomain documentation master file
 
+==========================
 sphinxcontrib-matlabdomain
 ==========================
 
-**sphinxcontrib-matlabdomain** is `Sphinx`_ extension to generate API
-documentation for `MATLAB`_, it also provides *autodoc* facilities, that lets
-you generate documentation *automatically* from MATLAB source files. It works
-similar to the  `Python Domain`_.
+**A Sphinx extension for documenting MATLAB code**
 
+sphinxcontrib-matlabdomain is a `Sphinx <https://www.sphinx-doc.org/>`_ extension
+that provides automatic documentation generation from MATLAB source files, similar to
+Python's autodoc. It allows you to keep your documentation and source code together
+while leveraging Sphinx's powerful documentation tools.
 
-Getting started
----------------
+.. note::
+   This documentation is organized into three main sections:
 
-If you are completely new to `Sphinx`_, follow this `Tutorial`_.
+   - **Getting Started** - New to Sphinx or this extension? Start here!
+   - **User Guide** - Comprehensive feature documentation and examples
+   - **Developer Guide** - Contributing to the project
 
-Install **sphinxcontrib-matlabdomain** with
+----
 
-::
+Quick Links
+===========
 
-   pip install sphinxcontrib-matlabdomain
+* :doc:`getting-started/installation` - Install and set up in minutes
+* :doc:`user-guide/configuration` - Configure for your project
+* :doc:`user-guide/autodoc-directives` - Document MATLAB code automatically
+* :doc:`developer-guide/contributing` - Contribute to the project
 
-In order for the Sphinx MATLAB domain to auto-document MATLAB source code, set
-the config value of ``matlab_src_dir`` to the absolute root path. Currently
-only one MATLAB path can be specified, but all subfolders in that tree will be
-searched.
+----
 
-For convenience the `primary domain <http://sphinx-doc.org/config.html#confval-primary_domain>`_
-can be set to ``mat``.
+Getting Started
+===============
 
-Assuming that the directory structure of the project is ike this:
-
-::
-
-   docs/
-       conf.py
-       index.rst
-       make.bat
-       Makefile
-   src
-       <matlab source files>
-
-The ``docs/conf.py`` would look like this:
-
-.. code-block:: python
-
-   import os
-
-   # other statements
-
-   extensions = ['sphinx.ext.autodoc', 'sphinxcontrib.matlab']
-   this_dir = os.path.dirname(os.path.abspath(__file__))
-   matlab_src_dir = os.path.abspath(os.path.join(this_dir, '..'))
-   primary_domain = 'mat'
-
-Example
--------
-
-.. automodule:: src
-
-.. autofunction:: times_two
-
-.. autofunction:: times_two_napoleon
-
-Using auto-directives
----------------------
-
-* Creating a Sphinx project
-* Modifying ``conf.py`` to include **sphinxcontrib-matlabdomain**  and autodoc.
-* Add ``matlab_src_dir`` with root of MATLAB sources
-* List directives and options
-* Using auto-directives
-* Using napoleon - different style docstrings, that are almost like MATLAB
-* Examples
-
-  * Function
-  * Function in package
-  * Class with inheritance and properties
-  * Class folder (have to use autofunction)
-
-* Known limitations
+New to Sphinx? Never used this extension before? These guides will get you up and running.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Getting Started
 
+   getting-started/installation
+   getting-started/quick-start
+   getting-started/first-project
 
-Directives
-----------
+----
+
+User Guide
+==========
+
+Comprehensive documentation of all features for documenting MATLAB code.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: User Guide
+
+   user-guide/configuration
+   user-guide/autodoc-directives
+   user-guide/matlab-domain
+   user-guide/napoleon-docstrings
+   user-guide/cross-referencing
+   user-guide/examples
+   user-guide/troubleshooting
+
+----
+
+Developer Guide
+===============
+
+Contributing to sphinxcontrib-matlabdomain? These guides cover architecture, testing, and development.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Guide
+
+   developer-guide/architecture
+   developer-guide/contributing
+   developer-guide/testing
+   developer-guide/known-issues
+   developer-guide/quick-reference
+
+----
+
+Reference
+=========
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+
+   reference/configuration-options
+   reference/directives
+   reference/api
+   reference/changelog
+
+----
 
 Indices and tables
 ==================
@@ -97,8 +101,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
-.. _Sphinx: https://http://www.sphinx-doc.org
-.. _Python Domain: http://www.sphinx-doc.org/en/master/usage/restructuredtext/domains.html#the-python-domain
-.. _Tutorial: http://www.sphinx-doc.org/en/1.7/tutorial.html
-.. _MATLAB: https://mathworks.com

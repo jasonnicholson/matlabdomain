@@ -56,6 +56,7 @@ Comprehensive documentation of all features for documenting MATLAB code.
 
    user-guide/configuration
    user-guide/autodoc-directives
+   user-guide/sphinx-matlab-apidoc
    user-guide/matlab-domain
    user-guide/napoleon-docstrings
    user-guide/cross-referencing

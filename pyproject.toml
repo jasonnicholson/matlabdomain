@@ -52,3 +52,8 @@ max-complexity = 51
 builtin = "clear,rare"
 ignore-words = ".github/codespell_ignore_words.txt"
 skip = "./.git"
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["sphinxcontrib"]

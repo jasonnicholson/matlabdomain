@@ -89,6 +89,67 @@ Build Warnings
 * Verify MATLAB syntax is valid
 * Run ``make clean && make html``
 
+Folders Starting with Underscore Not Found
+-------------------------------------------
+
+**Symptom:** MATLAB files in folders starting with ``_`` are not being documented
+
+**Cause:** Sphinx follows Python package naming conventions where folders starting
+with ``_`` are typically treated as private/internal and may be excluded by default.
+
+**Solutions:**
+
+1. **Rename folders** to not start with underscore (recommended):
+
+   .. code-block:: text
+
+      Before: src/_internal/myfile.m
+      After:  src/internal/myfile.m
+
+2. **Update exclude_patterns** in ``conf.py`` if the folder is being excluded:
+
+   .. code-block:: python
+
+      # Default excludes _build, etc.
+      exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+Python Package Naming Rules
+----------------------------
+
+**Important:** sphinxcontrib-matlabdomain uses Python import mechanisms internally,
+which means it follows Python naming conventions:
+
+* **Folders starting with** ``_`` may be treated as private
+* **Folders with** ``-`` (hyphen) won't work - use ``_`` (underscore) instead for
+  multi-word names
+* **Module names** must be valid Python identifiers
+
+**Best practices:**
+
+* Use alphanumeric folder names: ``utils``, ``helpers``, ``core``
+* For MATLAB packages, use the ``+`` prefix: ``+mypackage``
+* For MATLAB class folders, use the ``@`` prefix: ``@MyClass``
+* Avoid special characters in folder/file names except ``+`` and ``@``
+* Don't use a number or symbol as the first character of a folder name
+
+What'll notice here is these rules are very similar to MATLAB's own naming conventions for
+packages, classes, and variables. When you deviate, it may work but can lead to unexpected
+and hard to debug issues.
+
+**Example structure that works well:**
+
+.. code-block:: text
+
+   src/
+   ├── utilities.m           # Simple function
+   ├── +mypackage/           # MATLAB package (note the +)
+   │   ├── helper.m
+   │   └── validator.m
+   ├── @MyClass/             # MATLAB class folder (note the @)
+   │   └── MyClass.m
+   └── submodule/            # Regular folder (no underscore prefix)
+       └── tools.m
+
 Getting Help
 ============
 

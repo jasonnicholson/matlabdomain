@@ -293,15 +293,11 @@ Instead use the ``mat:`` prefix before the desired directives::
    .. mat:autofunction:: matsrc.func
 
 
-Online Demo
-===========
+Documentation
+==============
 
-.. warning::
-
-   The online demo is highly outdated!
-
-The test docs in the repository are online here:
-http://bwanamarko.alwaysdata.net/matlabdomain/
+Full documentation is available at:
+https://sphinxcontrib-matlabdomain.readthedocs.io/
 
 .. note::
 

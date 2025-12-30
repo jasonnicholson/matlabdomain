@@ -52,7 +52,7 @@ Integration Tests (Slow)
 
 **Purpose:** Test complete documentation builds with real projects
 
-**Run:** ``pytest test_slow/``
+**Run:** ``pytest -m slow test_slow/``
 
 Sphinx Tests
 ------------
@@ -104,12 +104,35 @@ Specific Test Function
 With Coverage
 -------------
 
+Terminal report with missing lines:
+
 .. code-block:: bash
 
-   pytest --cov=sphinxcontrib --cov-report=html
+   pytest --cov=sphinxcontrib --cov-report=term-missing --cov-branch
+
+With Coverage
+-------------
+
+Terminal report:
+
+.. code-block:: bash
+
+   pytest --cov=sphinxcontrib --cov-report=term --cov-branch
+
+HTML report:
+
+.. code-block:: bash
+
+   pytest --cov=sphinxcontrib --cov-report=html --cov-branch
 
    # View coverage report
    open htmlcov/index.html
+
+.. note::
+
+   Coverage configuration in ``pyproject.toml`` (``[tool.coverage.run]``)
+   automatically traces subprocesses, so the ``sphinx-matlab-apidoc`` CLI
+   invoked during tests is included in coverage without additional flags.
 
 Verbose Output
 --------------

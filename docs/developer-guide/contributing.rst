@@ -101,8 +101,14 @@ Edit code, add tests, update documentation as needed.
    # Run specific test file
    pytest tests/test_parse_mfile.py
 
-   # Run with coverage
-   pytest --cov=sphinxcontrib --cov-report=html
+   # Run with coverage (terminal summary with missing lines, branch-aware)
+   pytest --cov=sphinxcontrib --cov-report=term-missing --cov-branch
+
+   # Run with coverage (terminal summary, branch-aware)
+   pytest --cov=sphinxcontrib --cov-report=term --cov-branch
+
+   # Run with coverage (HTML report)
+   pytest --cov=sphinxcontrib --cov-report=html --cov-branch
 
 4. Check Code Quality
 ---------------------
@@ -243,8 +249,14 @@ Running Tests
    # With verbose output
    pytest -v
 
-   # With coverage
-   pytest --cov=sphinxcontrib --cov-report=html
+   # Run with coverage (terminal summary with missing lines, branch-aware)
+   pytest --cov=sphinxcontrib --cov-report=term-missing --cov-branch
+
+   # Run with coverage (terminal summary, branch-aware)
+   pytest --cov=sphinxcontrib --cov-report=term --cov-branch
+
+   # With coverage (HTML report)
+   pytest --cov=sphinxcontrib --cov-report=html --cov-branch
 
    # Stop on first failure
    pytest -x

@@ -27,6 +27,15 @@ Let's say you have a MATLAB project with this structure:
    └── docs/
        (we'll create this)
 
+.. note::
+   **Important: Folder Naming**
+
+   Avoid folders starting with ``_`` (underscore) in your MATLAB source tree,
+   as sphinxcontrib-matlabdomain uses Python import conventions where such
+   folders may be treated as private and excluded. Use MATLAB-specific
+   prefixes like ``+mypackage`` (for packages) and ``@MyClass`` (for class
+   folders) instead.
+
 Step 1: Install Prerequisites
 ==============================
 

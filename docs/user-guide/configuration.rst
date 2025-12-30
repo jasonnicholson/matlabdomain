@@ -238,6 +238,34 @@ If you have packages and classes in subdirectories:
    matlab_src_dir = os.path.abspath(os.path.join(this_dir, '..', 'src'))
    matlab_short_links = True
 
+.. important::
+   **Folder Naming Rules**
+
+   sphinxcontrib-matlabdomain uses Python import mechanisms internally, so it
+   follows Python package naming conventions:
+
+   * **Avoid folders starting with** ``_`` (underscore) - they may be treated
+     as private and excluded
+   * **Do not use** ``-`` (hyphen) in folder names - use ``_`` (underscore) instead
+   * **Folder names must be valid Python identifiers**
+
+   **MATLAB-specific prefixes are fine:**
+
+   * ``+mypackage/`` for MATLAB packages
+   * ``@MyClass/`` for MATLAB class folders
+
+   **Examples of problematic folder names:**
+
+   * ``_internal/`` - starts with underscore (may be ignored)
+   * ``my-utils/`` - contains hyphen (won't work)
+   * ``2dtools/`` - starts with number (invalid Python identifier)
+
+   **Better alternatives:**
+
+   * ``internal/`` or ``internals/``
+   * ``my_utils/``
+   * ``tools2d/`` or ``two_d_tools/``
+
 Documentation Next to Source
 -----------------------------
 

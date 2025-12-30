@@ -22,9 +22,8 @@ Setup
    .venv\Scripts\activate      # Windows
 
    # Install dependencies
-   pip install -r dev-requirements.txt
-   pip install -r rtd-requirements.txt
-   pip install -e .
+   pip install -r dev-requirements.txt # For development
+   pip install -r rtd-requirements.txt # For docs
 
    # Install pre-commit hooks
    pre-commit install
@@ -34,17 +33,8 @@ Testing
 
 .. code-block:: bash
 
-   # Run all tests
+  # Run tests
    pytest
-
-   # Run specific test file
-   pytest tests/test_parse_mfile.py
-
-   # Run specific test
-   pytest tests/test_parse_mfile.py::test_function_name
-
-   # With coverage
-   pytest --cov=sphinxcontrib --cov-report=html
 
    # Verbose output
    pytest -v
@@ -52,8 +42,23 @@ Testing
    # Stop on first failure
    pytest -x
 
+   # Run specific test file
+   pytest tests/test_parse_mfile.py
+
+   # Run specific test
+   pytest tests/test_parse_mfile.py::test_function_name
+
+   # Run with coverage (terminal summary with missing lines, branch-aware)
+   pytest --cov=sphinxcontrib --cov-report=term-missing --cov-branch
+
+   # Run with coverage (terminal summary, branch-aware)
+   pytest --cov=sphinxcontrib --cov-report=term --cov-branch
+
+   # Coverage (HTML report)
+   pytest --cov=sphinxcontrib --cov-report=html --cov-branch
+
    # Run slow integration tests
-   pytest tests/ test_slow/
+   pytest -m slow test_slow/
 
 Code Quality
 ------------
@@ -76,10 +81,10 @@ Documentation
 .. code-block:: bash
 
    # Build HTML docs
-   cd docs && make html && cd ..
+   cd docs && make html
 
    # Clean build
-   cd docs && make clean && make html && cd ..
+   cd docs && make clean && make html
 
    # View docs (Linux)
    xdg-open docs/_build/html/index.html
@@ -89,6 +94,9 @@ Documentation
 
    # View docs (Windows)
    start docs/_build/html/index.html
+
+  # Live preview with sphinx-autobuild
+   cd docs && make livehtml
 
 Git Workflow
 ------------

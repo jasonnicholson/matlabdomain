@@ -126,13 +126,13 @@ pytest test_slow/test_integration.py --cov=sphinxcontrib --cov-report=html -v -s
 
 ### Skip slow tests in regular test runs
 ```bash
-pytest tests/ -v  # Doesn't include test_slow/
+pytest -v  # Doesn't include test_slow/
 ```
 
-By default, pytest will only run tests in the `tests/` directory. Use the `-k` flag to selectively run slow tests:
+By default, pytest will only run tests in the `tests/` directory. Use `-m` to include slow tests:
 
 ```bash
-pytest -k "slow" -v
+pytest -m slow -v test_slow/
 ```
 
 ## Adding New Projects
@@ -155,7 +155,7 @@ pytest tests/ -v
 
 If you want to validate against real projects, run the slow tests locally:
 ```bash
-pytest test_slow/ -v -s
+pytest -m slow test_slow/ -v -s
 ```
 
 ## Troubleshooting

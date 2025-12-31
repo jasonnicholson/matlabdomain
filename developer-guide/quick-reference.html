@@ -1,0 +1,1004 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quick Reference &mdash; sphinxcontrib-matlabdomain  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Configuration Options" href="../reference/configuration-options.html" />
+    <link rel="prev" title="Known Issues" href="known-issues.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            sphinxcontrib-matlabdomain
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/installation.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/installation.html#installing-sphinxcontrib-matlabdomain">Installing sphinxcontrib-matlabdomain</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/installation.html#basic-installation">Basic Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/installation.html#installing-in-a-virtual-environment-recommended">Installing in a Virtual Environment (Recommended)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/installation.html#verifying-installation">Verifying Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/installation.html#what-gets-installed">What Gets Installed?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/installation.html#next-steps">Next Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/installation.html#installing-sphinx-separately">Installing Sphinx Separately</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/installation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/installation.html#installation-fails">Installation Fails</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/installation.html#importerror-after-installation">ImportError After Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/installation.html#python-version-issues">Python Version Issues</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/quick-start.html">Quick Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#what-you-ll-build">What You’ll Build</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#step-1-create-a-sphinx-project">Step 1: Create a Sphinx Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#step-2-configure-for-matlab">Step 2: Configure for MATLAB</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#step-3-add-matlab-source-files">Step 3: Add MATLAB Source Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#step-4-document-your-code">Step 4: Document Your Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#step-5-build-the-documentation">Step 5: Build the Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#what-just-happened">What Just Happened?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#next-steps">Next Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/quick-start.html#common-next-questions">Common Next Questions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/quick-start.html#how-do-i-document-a-class">How do I document a class?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/quick-start.html#how-do-i-document-an-entire-package">How do I document an entire package?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/quick-start.html#how-do-i-customize-the-output">How do I customize the output?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/quick-start.html#where-do-i-go-for-help">Where do I go for help?</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/first-project.html">Your First Project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#project-setup">Project Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#step-1-install-prerequisites">Step 1: Install Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#step-2-create-documentation-directory">Step 2: Create Documentation Directory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#step-3-configure-for-matlab">Step 3: Configure for MATLAB</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#step-4-create-matlab-source-files">Step 4: Create MATLAB Source Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#step-5-generate-api-docs-with-sphinx-matlab-apidoc">Step 5: Generate API docs with <code class="docutils literal notranslate"><span class="pre">sphinx-matlab-apidoc</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#what-this-does">What this does</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#regenerate-after-adding-or-deleting-source-files">Regenerate after adding or deleting source files</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#step-6-build-your-documentation">Step 6: Build Your Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#step-7-view-your-documentation">Step 7: View Your Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#understanding-what-happened">Understanding What Happened</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#the-magic-of-autodoc-directives">The Magic of Autodoc Directives</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#customizing-your-documentation">Customizing Your Documentation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#change-the-theme">Change the Theme</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#add-a-logo">Add a Logo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#add-more-pages">Add More Pages</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#next-steps">Next Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting-started/first-project.html#common-issues">Common Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#no-module-named-sphinxcontrib-matlab">“No module named ‘sphinxcontrib.matlab’”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#warning-matlab-src-dir-not-set">“WARNING: matlab_src_dir not set”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#warning-don-t-know-which-module-to-import">“WARNING: don’t know which module to import”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting-started/first-project.html#functions-classes-not-showing-up">Functions/classes not showing up</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user-guide/configuration.html">Configuration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/configuration.html#essential-configuration">Essential Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#extensions">extensions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#matlab-src-dir">matlab_src_dir</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/configuration.html#optional-configuration">Optional Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#primary-domain">primary_domain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#matlab-short-links">matlab_short_links</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#matlab-auto-link">matlab_auto_link</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#matlab-keep-package-prefix">matlab_keep_package_prefix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#matlab-show-property-default-values">matlab_show_property_default_values</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/configuration.html#example-complete-configuration">Example Complete Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/configuration.html#configuration-for-different-project-structures">Configuration for Different Project Structures</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#single-directory">Single Directory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#multiple-levels-with-packages">Multiple Levels with Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#documentation-next-to-source">Documentation Next to Source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#separate-docs-project">Separate Docs Project</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/configuration.html#advanced-configuration">Advanced Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#napoleon-extension">Napoleon Extension</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#custom-css">Custom CSS</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#intersphinx-linking">Intersphinx Linking</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/configuration.html#troubleshooting-configuration">Troubleshooting Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#configuration-not-working">Configuration Not Working</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#matlab-src-dir-not-found">matlab_src_dir Not Found</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/configuration.html#extension-not-loaded">Extension Not Loaded</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/configuration.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../user-guide/autodoc-directives.html">Autodoc Directives</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#autofunction">autofunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#basic-usage">Basic Usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#with-package-prefix">With Package Prefix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#options">Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#example">Example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#autoclass">autoclass</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id1">Basic Usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id2">Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#selective-members">Selective Members</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id3">Example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#automodule">automodule</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id4">Basic Usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id5">Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id6">Example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#automethod">automethod</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id7">Basic Usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id8">Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id9">Example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#autoattribute">autoattribute</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id10">Basic Usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id11">Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#id12">Example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#combining-directives">Combining Directives</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#full-class-documentation">Full Class Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#selective-documentation">Selective Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#package-overview">Package Overview</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#directive-options-reference">Directive Options Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#common-options">Common Options</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#tips-and-best-practices">Tips and Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#function-class-not-found">Function/Class Not Found</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#no-documentation-appearing">No Documentation Appearing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/autodoc-directives.html#members-not-showing">Members Not Showing</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/autodoc-directives.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../user-guide/sphinx-matlab-apidoc.html">sphinx-matlab-apidoc</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/sphinx-matlab-apidoc.html#when-to-use">When to Use</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/sphinx-matlab-apidoc.html#quick-start">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/sphinx-matlab-apidoc.html#common-options">Common Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/sphinx-matlab-apidoc.html#examples">Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/sphinx-matlab-apidoc.html#tips-and-pitfalls">Tips and Pitfalls</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/sphinx-matlab-apidoc.html#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../user-guide/matlab-domain.html">MATLAB Domain</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/matlab-domain.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/matlab-domain.html#roles-for-cross-referencing">Roles for Cross-Referencing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/matlab-domain.html#when-to-use-manual-directives">When to Use Manual Directives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/matlab-domain.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../user-guide/napoleon-docstrings.html">Napoleon Docstrings</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/napoleon-docstrings.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/napoleon-docstrings.html#google-style-recommended">Google Style (Recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/napoleon-docstrings.html#numpy-style">NumPy Style</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/napoleon-docstrings.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/napoleon-docstrings.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../user-guide/cross-referencing.html">Cross-Referencing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/cross-referencing.html#automatic-links">Automatic Links</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/cross-referencing.html#manual-links">Manual Links</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/cross-referencing.html#short-links">Short Links</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/cross-referencing.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../user-guide/examples.html">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/examples.html#complete-project-example">Complete Project Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/examples.html#function-examples">Function Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/examples.html#class-examples">Class Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/examples.html#package-examples">Package Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/examples.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../user-guide/troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/troubleshooting.html#installation-issues">Installation Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/troubleshooting.html#package-not-found">Package Not Found</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/troubleshooting.html#configuration-issues">Configuration Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/troubleshooting.html#matlab-src-dir-not-found">matlab_src_dir Not Found</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/troubleshooting.html#extension-not-loading">Extension Not Loading</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/troubleshooting.html#build-issues">Build Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/troubleshooting.html#functions-not-appearing">Functions Not Appearing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/troubleshooting.html#classes-not-showing-members">Classes Not Showing Members</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/troubleshooting.html#build-warnings">Build Warnings</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/troubleshooting.html#folders-starting-with-underscore-not-found">Folders Starting with Underscore Not Found</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user-guide/troubleshooting.html#python-package-naming-rules">Python Package Naming Rules</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/troubleshooting.html#getting-help">Getting Help</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user-guide/troubleshooting.html#see-also">See Also</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#project-overview">Project Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#core-components">Core Components</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#matlab-py-main-domain-958-lines">matlab.py - Main Domain (958 lines)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#mat-types-py-type-system">mat_types.py - Type System</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#mat-tree-sitter-parser-py-ast-parser">mat_tree_sitter_parser.py - AST Parser</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#mat-documenters-py-documenter-classes">mat_documenters.py - Documenter Classes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#mat-directives-py-autodoc-directives">mat_directives.py - Autodoc Directives</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#mat-lexer-py-syntax-highlighting">mat_lexer.py - Syntax Highlighting</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#data-flow">Data Flow</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#user-setup">1. User Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#sphinx-build-starts">2. Sphinx Build Starts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#module-discovery">3. Module Discovery</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#directive-processing">4. Directive Processing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#parsing">5. Parsing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#type-creation">6. Type Creation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#documentation-generation">7. Documentation Generation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#cross-reference-resolution">8. Cross-Reference Resolution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#html-generation">9. HTML Generation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#file-system-organization">File System Organization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#source-code-layout">Source Code Layout</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#test-organization">Test Organization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#key-algorithms">Key Algorithms</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#id1">Module Discovery</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#name-resolution">Name Resolution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#docstring-parsing">Docstring Parsing</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#design-patterns">Design Patterns</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#the-documenter-pattern">The Documenter Pattern</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#the-type-system">The Type System</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#extension-points">Extension Points</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#adding-new-directive-types">Adding New Directive Types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#adding-new-mattypes">Adding New MatTypes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#custom-parsing">Custom Parsing</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#dependencies">Dependencies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#core-dependencies">Core Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#development-dependencies">Development Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#development-setup">Development Setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#clone-the-repository">Clone the Repository</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#create-virtual-environment">Create Virtual Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#install-dependencies">Install Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#install-pre-commit-hooks">Install Pre-commit Hooks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#verify-installation">Verify Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#development-workflow">Development Workflow</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#create-a-branch">1. Create a Branch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#make-changes">2. Make Changes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#run-tests">3. Run Tests</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#check-code-quality">4. Check Code Quality</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#commit-changes">5. Commit Changes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#push-and-create-pull-request">6. Push and Create Pull Request</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#code-style">Code Style</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#formatting-rules">Formatting Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#documentation-style">Documentation Style</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#testing-guidelines">Testing Guidelines</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#writing-tests">Writing Tests</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#running-tests">Running Tests</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#test-organization">Test Organization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#documentation-contributions">Documentation Contributions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#building-documentation">Building Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#adding-new-pages">Adding New Pages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#restructuredtext-tips">ReStructuredText Tips</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#pull-request-guidelines">Pull Request Guidelines</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#before-submitting">Before Submitting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#pr-description">PR Description</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#review-process">Review Process</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#reporting-issues">Reporting Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#found-a-bug">Found a Bug?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#feature-request">Feature Request?</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#getting-help">Getting Help</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#code-of-conduct">Code of Conduct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="testing.html">Testing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#test-organization">Test Organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#test-categories">Test Categories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#unit-tests-fast">Unit Tests (Fast)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#integration-tests-slow">Integration Tests (Slow)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#sphinx-tests">Sphinx Tests</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#running-tests">Running Tests</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#all-tests">All Tests</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#fast-tests-only">Fast Tests Only</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#slow-tests-only">Slow Tests Only</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#specific-test-file">Specific Test File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#specific-test-function">Specific Test Function</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#with-coverage">With Coverage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#id1">With Coverage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#verbose-output">Verbose Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#stop-on-first-failure">Stop on First Failure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#parallel-execution">Parallel Execution</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#writing-tests">Writing Tests</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#basic-test-structure">Basic Test Structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#using-fixtures">Using Fixtures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#testing-with-sphinx">Testing with Sphinx</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#testing-error-handling">Testing Error Handling</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#test-data-organization">Test Data Organization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#matlab-test-files">MATLAB Test Files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#sphinx-test-roots">Sphinx Test Roots</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#testing-best-practices">Testing Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#coverage-goals">Coverage Goals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#continuous-integration">Continuous Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#github-actions">GitHub Actions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#running-ci-locally">Running CI Locally</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#debugging-failing-tests">Debugging Failing Tests</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#id2">Verbose Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#show-print-statements">Show Print Statements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#debug-on-failure">Debug on Failure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#show-local-variables">Show Local Variables</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#rerun-failed-tests">Rerun Failed Tests</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#test-maintenance">Test Maintenance</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#updating-test-data">Updating Test Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#updating-baselines">Updating Baselines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#removing-obsolete-tests">Removing Obsolete Tests</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#common-test-patterns">Common Test Patterns</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#testing-parsers">Testing Parsers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#testing-documenters">Testing Documenters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="testing.html#testing-links">Testing Links</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="known-issues.html">Known Issues</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="known-issues.html#current-known-issues">Current Known Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="known-issues.html#documented-todos">Documented TODOs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="known-issues.html#limitations">Limitations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="known-issues.html#matlab-version-support">MATLAB Version Support</a></li>
+<li class="toctree-l3"><a class="reference internal" href="known-issues.html#single-matlab-src-dir">Single matlab_src_dir</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="known-issues.html#workarounds">Workarounds</a></li>
+<li class="toctree-l2"><a class="reference internal" href="known-issues.html#reporting-new-issues">Reporting New Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="known-issues.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Quick Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#common-commands">Common Commands</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#setup">Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#testing">Testing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#code-quality">Code Quality</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#documentation">Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#git-workflow">Git Workflow</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#key-files-reference">Key Files Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#source-code">Source Code</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#configuration">Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dependencies">Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#common-workflows">Common Workflows</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#adding-a-new-feature">Adding a New Feature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fixing-a-bug">Fixing a Bug</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-documentation">Adding Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#reviewing-a-pr">Reviewing a PR</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#important-configuration-settings">Important Configuration Settings</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#conf-py-sphinx">conf.py (Sphinx)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pyproject-toml">pyproject.toml</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting-quick-fixes">Troubleshooting Quick Fixes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#tests-failing">Tests Failing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#import-errors">Import Errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pre-commit-failing">Pre-commit Failing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#documentation-not-building">Documentation Not Building</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ci-failing-on-github">CI Failing on GitHub</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#useful-links">Useful Links</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#code-snippets">Code Snippets</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#testing-a-matlab-function">Testing a MATLAB Function</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#creating-a-test">Creating a Test</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#debugging-sphinx-build">Debugging Sphinx Build</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../reference/configuration-options.html">Configuration Options</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration-options.html#essential-options">Essential Options</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../reference/configuration-options.html#extensions">extensions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../reference/configuration-options.html#matlab-src-dir">matlab_src_dir</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration-options.html#optional-options">Optional Options</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../reference/configuration-options.html#primary-domain">primary_domain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../reference/configuration-options.html#matlab-short-links">matlab_short_links</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../reference/configuration-options.html#matlab-auto-link">matlab_auto_link</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../reference/configuration-options.html#matlab-keep-package-prefix">matlab_keep_package_prefix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../reference/configuration-options.html#matlab-show-property-default-values">matlab_show_property_default_values</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration-options.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/directives.html">Directives</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reference/directives.html#autodoc-directives">Autodoc Directives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/directives.html#manual-directives">Manual Directives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/directives.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/api.html">API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reference/api.html#for-users">For Users</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/api.html#for-developers">For Developers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/api.html#module-reference">Module Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/api.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/changelog.html">Changelog</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reference/changelog.html#recent-changes">Recent Changes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../reference/changelog.html#version-0-22-0-latest">Version 0.22.0 (Latest)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/changelog.html#version-history">Version History</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/changelog.html#see-also">See Also</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">sphinxcontrib-matlabdomain</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Quick Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/developer-guide/quick-reference.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="quick-reference">
+<h1>Quick Reference<a class="headerlink" href="#quick-reference" title="Link to this heading"></a></h1>
+<p>Essential commands and workflows for development. Bookmark this page!</p>
+<section id="common-commands">
+<h2>Common Commands<a class="headerlink" href="#common-commands" title="Link to this heading"></a></h2>
+<section id="setup">
+<h3>Setup<a class="headerlink" href="#setup" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/sphinx-contrib/matlabdomain.git
+<span class="nb">cd</span><span class="w"> </span>matlabdomain
+
+<span class="c1"># Create virtual environment</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">  </span><span class="c1"># Linux/macOS</span>
+.venv<span class="se">\S</span>cripts<span class="se">\a</span>ctivate<span class="w">      </span><span class="c1"># Windows</span>
+
+<span class="c1"># Install dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>dev-requirements.txt<span class="w"> </span><span class="c1"># For development</span>
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>rtd-requirements.txt<span class="w"> </span><span class="c1"># For docs</span>
+
+<span class="c1"># Install pre-commit hooks</span>
+pre-commit<span class="w"> </span>install
+</pre></div>
+</div>
+</section>
+<section id="testing">
+<h3>Testing<a class="headerlink" href="#testing" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run tests</span>
+<span class="w"> </span>pytest
+
+<span class="w"> </span><span class="c1"># Verbose output</span>
+<span class="w"> </span>pytest<span class="w"> </span>-v
+
+<span class="w"> </span><span class="c1"># Stop on first failure</span>
+<span class="w"> </span>pytest<span class="w"> </span>-x
+
+<span class="w"> </span><span class="c1"># Run specific test file</span>
+<span class="w"> </span>pytest<span class="w"> </span>tests/test_parse_mfile.py
+
+<span class="w"> </span><span class="c1"># Run specific test</span>
+<span class="w"> </span>pytest<span class="w"> </span>tests/test_parse_mfile.py::test_function_name
+
+<span class="w"> </span><span class="c1"># Run with coverage (terminal summary with missing lines, branch-aware)</span>
+<span class="w"> </span>pytest<span class="w"> </span>--cov<span class="o">=</span>sphinxcontrib<span class="w"> </span>--cov-report<span class="o">=</span>term-missing<span class="w"> </span>--cov-branch
+
+<span class="w"> </span><span class="c1"># Run with coverage (terminal summary, branch-aware)</span>
+<span class="w"> </span>pytest<span class="w"> </span>--cov<span class="o">=</span>sphinxcontrib<span class="w"> </span>--cov-report<span class="o">=</span>term<span class="w"> </span>--cov-branch
+
+<span class="w"> </span><span class="c1"># Coverage (HTML report)</span>
+<span class="w"> </span>pytest<span class="w"> </span>--cov<span class="o">=</span>sphinxcontrib<span class="w"> </span>--cov-report<span class="o">=</span>html<span class="w"> </span>--cov-branch
+
+<span class="w"> </span><span class="c1"># Run slow integration tests</span>
+<span class="w"> </span>pytest<span class="w"> </span>-m<span class="w"> </span>slow<span class="w"> </span>test_slow/
+</pre></div>
+</div>
+</section>
+<section id="code-quality">
+<h3>Code Quality<a class="headerlink" href="#code-quality" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run all pre-commit checks</span>
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+
+<span class="c1"># Lint and format</span>
+ruff<span class="w"> </span>check<span class="w"> </span>.
+ruff<span class="w"> </span>format<span class="w"> </span>.
+
+<span class="c1"># Type check (if mypy configured)</span>
+mypy<span class="w"> </span>sphinxcontrib/
+</pre></div>
+</div>
+</section>
+<section id="documentation">
+<h3>Documentation<a class="headerlink" href="#documentation" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w"> </span><span class="c1"># Build HTML docs</span>
+<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>docs<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>html
+
+<span class="w"> </span><span class="c1"># Clean build</span>
+<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>docs<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>html
+
+<span class="w"> </span><span class="c1"># View docs (Linux)</span>
+<span class="w"> </span>xdg-open<span class="w"> </span>docs/_build/html/index.html
+
+<span class="w"> </span><span class="c1"># View docs (macOS)</span>
+<span class="w"> </span>open<span class="w"> </span>docs/_build/html/index.html
+
+<span class="w"> </span><span class="c1"># View docs (Windows)</span>
+<span class="w"> </span>start<span class="w"> </span>docs/_build/html/index.html
+
+<span class="c1"># Live preview with sphinx-autobuild</span>
+<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>docs<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>livehtml
+</pre></div>
+</div>
+</section>
+<section id="git-workflow">
+<h3>Git Workflow<a class="headerlink" href="#git-workflow" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create feature branch</span>
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>feature/my-feature
+
+<span class="c1"># Make changes, then</span>
+git<span class="w"> </span>add<span class="w"> </span>.
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat: add new feature&quot;</span>
+
+<span class="c1"># Push to GitHub</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>feature/my-feature
+</pre></div>
+</div>
+</section>
+</section>
+<section id="key-files-reference">
+<h2>Key Files Reference<a class="headerlink" href="#key-files-reference" title="Link to this heading"></a></h2>
+<section id="source-code">
+<h3>Source Code<a class="headerlink" href="#source-code" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sphinxcontrib/matlab.py</span></code></p></td>
+<td><p>Main domain implementation, roles, directives</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sphinxcontrib/mat_types.py</span></code></p></td>
+<td><p>MATLAB type definitions (Class, Function, etc.)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sphinxcontrib/mat_documenters.py</span></code></p></td>
+<td><p>Autodoc documenters for extracting docs</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sphinxcontrib/mat_directives.py</span></code></p></td>
+<td><p>Autodoc directive implementations</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sphinxcontrib/mat_tree_sitter_parser.py</span></code></p></td>
+<td><p>AST parser using tree-sitter</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sphinxcontrib/mat_lexer.py</span></code></p></td>
+<td><p>Syntax highlighting lexer</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="configuration">
+<h3>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></p></td>
+<td><p>Project metadata, tool configs (ruff, pytest, etc.)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">setup.py</span></code></p></td>
+<td><p>Package installation configuration</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pytest.ini</span></code></p></td>
+<td><p>pytest configuration</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tox.ini</span></code></p></td>
+<td><p>Testing across multiple Python/Sphinx versions</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.pre-commit-config.yaml</span></code></p></td>
+<td><p>Pre-commit hook configuration</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">docs/conf.py</span></code></p></td>
+<td><p>Sphinx documentation configuration</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="dependencies">
+<h3>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dev-requirements.txt</span></code></p></td>
+<td><p>Development dependencies (pytest, ruff, etc.)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rtd-requirements.txt</span></code></p></td>
+<td><p>ReadTheDocs build requirements</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">setup.py</span></code></p></td>
+<td><p>Package dependencies (install_requires)</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="common-workflows">
+<h2>Common Workflows<a class="headerlink" href="#common-workflows" title="Link to this heading"></a></h2>
+<section id="adding-a-new-feature">
+<h3>Adding a New Feature<a class="headerlink" href="#adding-a-new-feature" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p>Create branch: <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">checkout</span> <span class="pre">-b</span> <span class="pre">feature/my-feature</span></code></p></li>
+<li><p>Write code in <code class="docutils literal notranslate"><span class="pre">sphinxcontrib/</span></code></p></li>
+<li><p>Add tests in <code class="docutils literal notranslate"><span class="pre">tests/test_myfeature.py</span></code></p></li>
+<li><p>Run tests: <code class="docutils literal notranslate"><span class="pre">pytest</span></code></p></li>
+<li><p>Update documentation in <code class="docutils literal notranslate"><span class="pre">docs/</span></code></p></li>
+<li><p>Update <code class="docutils literal notranslate"><span class="pre">CHANGES.rst</span></code></p></li>
+<li><p>Commit: <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">commit</span> <span class="pre">-m</span> <span class="pre">&quot;feat:</span> <span class="pre">description&quot;</span></code></p></li>
+<li><p>Push and create PR</p></li>
+</ol>
+</section>
+<section id="fixing-a-bug">
+<h3>Fixing a Bug<a class="headerlink" href="#fixing-a-bug" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p>Create branch: <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">checkout</span> <span class="pre">-b</span> <span class="pre">fix/issue-description</span></code></p></li>
+<li><p>Write failing test that reproduces the bug</p></li>
+<li><p>Fix the bug in <code class="docutils literal notranslate"><span class="pre">sphinxcontrib/</span></code></p></li>
+<li><p>Verify test passes: <code class="docutils literal notranslate"><span class="pre">pytest</span></code></p></li>
+<li><p>Update <code class="docutils literal notranslate"><span class="pre">CHANGES.rst</span></code></p></li>
+<li><p>Commit: <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">commit</span> <span class="pre">-m</span> <span class="pre">&quot;fix:</span> <span class="pre">description&quot;</span></code></p></li>
+<li><p>Push and create PR</p></li>
+</ol>
+</section>
+<section id="adding-documentation">
+<h3>Adding Documentation<a class="headerlink" href="#adding-documentation" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p>Create <code class="docutils literal notranslate"><span class="pre">.rst</span></code> file in appropriate <code class="docutils literal notranslate"><span class="pre">docs/</span></code> subdirectory</p></li>
+<li><p>Add to <code class="docutils literal notranslate"><span class="pre">toctree</span></code> in parent page</p></li>
+<li><p>Write content in reStructuredText</p></li>
+<li><p>Build: <code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">docs</span> <span class="pre">&amp;&amp;</span> <span class="pre">make</span> <span class="pre">html</span></code></p></li>
+<li><p>Review in browser</p></li>
+<li><p>Commit and push</p></li>
+</ol>
+</section>
+<section id="reviewing-a-pr">
+<h3>Reviewing a PR<a class="headerlink" href="#reviewing-a-pr" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p>Checkout PR branch: <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">fetch</span> <span class="pre">origin</span> <span class="pre">&amp;&amp;</span> <span class="pre">git</span> <span class="pre">checkout</span> <span class="pre">pr-branch</span></code></p></li>
+<li><p>Install: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code></p></li>
+<li><p>Run tests: <code class="docutils literal notranslate"><span class="pre">pytest</span></code></p></li>
+<li><p>Build docs: <code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">docs</span> <span class="pre">&amp;&amp;</span> <span class="pre">make</span> <span class="pre">html</span></code></p></li>
+<li><p>Review code changes</p></li>
+<li><p>Test manually if needed</p></li>
+<li><p>Leave feedback on GitHub</p></li>
+</ol>
+</section>
+</section>
+<section id="important-configuration-settings">
+<h2>Important Configuration Settings<a class="headerlink" href="#important-configuration-settings" title="Link to this heading"></a></h2>
+<section id="conf-py-sphinx">
+<h3>conf.py (Sphinx)<a class="headerlink" href="#conf-py-sphinx" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Essential MATLAB configuration</span>
+<span class="n">extensions</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;sphinxcontrib.matlab&#39;</span><span class="p">,</span> <span class="s1">&#39;sphinx.ext.autodoc&#39;</span><span class="p">]</span>
+<span class="n">matlab_src_dir</span> <span class="o">=</span> <span class="s1">&#39;/path/to/matlab/src&#39;</span>
+<span class="n">primary_domain</span> <span class="o">=</span> <span class="s1">&#39;mat&#39;</span>
+
+<span class="c1"># Optional enhancements</span>
+<span class="n">matlab_short_links</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">matlab_auto_link</span> <span class="o">=</span> <span class="s1">&#39;basic&#39;</span>
+<span class="n">matlab_show_property_default_values</span> <span class="o">=</span> <span class="kc">True</span>
+</pre></div>
+</div>
+</section>
+<section id="pyproject-toml">
+<h3>pyproject.toml<a class="headerlink" href="#pyproject-toml" title="Link to this heading"></a></h3>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[tool.ruff]</span>
+<span class="n">line-length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">88</span>
+<span class="n">target-version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;py38&quot;</span>
+
+<span class="k">[tool.pytest.ini_options]</span>
+<span class="n">testpaths</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;tests&quot;</span><span class="p">]</span>
+<span class="n">python_files</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;test_*.py&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="troubleshooting-quick-fixes">
+<h2>Troubleshooting Quick Fixes<a class="headerlink" href="#troubleshooting-quick-fixes" title="Link to this heading"></a></h2>
+<section id="tests-failing">
+<h3>Tests Failing<a class="headerlink" href="#tests-failing" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clean and reinstall</span>
+pip<span class="w"> </span>uninstall<span class="w"> </span>sphinxcontrib-matlabdomain
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+pytest
+</pre></div>
+</div>
+</section>
+<section id="import-errors">
+<h3>Import Errors<a class="headerlink" href="#import-errors" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Verify environment</span>
+which<span class="w"> </span>python
+pip<span class="w"> </span>list<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>sphinx
+
+<span class="c1"># Reinstall in editable mode</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+</section>
+<section id="pre-commit-failing">
+<h3>Pre-commit Failing<a class="headerlink" href="#pre-commit-failing" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Update hooks</span>
+pre-commit<span class="w"> </span>autoupdate
+
+<span class="c1"># Run manually</span>
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+</pre></div>
+</div>
+</section>
+<section id="documentation-not-building">
+<h3>Documentation Not Building<a class="headerlink" href="#documentation-not-building" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clean build</span>
+<span class="nb">cd</span><span class="w"> </span>docs
+make<span class="w"> </span>clean
+make<span class="w"> </span>html
+</pre></div>
+</div>
+</section>
+<section id="ci-failing-on-github">
+<h3>CI Failing on GitHub<a class="headerlink" href="#ci-failing-on-github" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Check <code class="docutils literal notranslate"><span class="pre">.github/workflows/python-package.yml</span></code></p></li>
+<li><p>Run same commands locally</p></li>
+<li><p>Ensure all tests pass locally first</p></li>
+</ul>
+</section>
+</section>
+<section id="useful-links">
+<h2>Useful Links<a class="headerlink" href="#useful-links" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Repository:</strong> <a class="reference external" href="https://github.com/sphinx-contrib/matlabdomain">https://github.com/sphinx-contrib/matlabdomain</a></p></li>
+<li><p><strong>Issues:</strong> <a class="reference external" href="https://github.com/sphinx-contrib/matlabdomain/issues">https://github.com/sphinx-contrib/matlabdomain/issues</a></p></li>
+<li><p><strong>Documentation:</strong> <a class="reference external" href="https://sphinxcontrib-matlabdomain.readthedocs.io/">https://sphinxcontrib-matlabdomain.readthedocs.io/</a></p></li>
+<li><p><strong>PyPI:</strong> <a class="reference external" href="https://pypi.org/project/sphinxcontrib-matlabdomain/">https://pypi.org/project/sphinxcontrib-matlabdomain/</a></p></li>
+<li><p><strong>Sphinx Docs:</strong> <a class="reference external" href="https://www.sphinx-doc.org/">https://www.sphinx-doc.org/</a></p></li>
+</ul>
+</section>
+<section id="code-snippets">
+<h2>Code Snippets<a class="headerlink" href="#code-snippets" title="Link to this heading"></a></h2>
+<section id="testing-a-matlab-function">
+<h3>Testing a MATLAB Function<a class="headerlink" href="#testing-a-matlab-function" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">sphinxcontrib.mat_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MatFunction</span>
+
+<span class="c1"># Parse a MATLAB file</span>
+<span class="n">func</span> <span class="o">=</span> <span class="n">MatFunction</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;path/to/function.m&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">docstring</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="creating-a-test">
+<h3>Creating a Test<a class="headerlink" href="#creating-a-test" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sphinxcontrib.mat_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MatClass</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_class_parsing</span><span class="p">():</span>
+    <span class="bp">cls</span> <span class="o">=</span> <span class="n">MatClass</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s2">&quot;MyClass.m&quot;</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="bp">cls</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;MyClass&quot;</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">methods</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+</pre></div>
+</div>
+</section>
+<section id="debugging-sphinx-build">
+<h3>Debugging Sphinx Build<a class="headerlink" href="#debugging-sphinx-build" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># In conf.py, add logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="environment-variables">
+<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h2>
+<p>Useful environment variables:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set MATLAB source directory</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">MATLAB_SRC_DIR</span><span class="o">=</span>/path/to/matlab
+
+<span class="c1"># Python debugging</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONVERBOSE</span><span class="o">=</span><span class="m">1</span>
+
+<span class="c1"># Pytest options</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTEST_ADDOPTS</span><span class="o">=</span><span class="s2">&quot;-v --tb=short&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="architecture.html"><span class="doc">Architecture</span></a> - Understand the codebase</p></li>
+<li><p><a class="reference internal" href="contributing.html"><span class="doc">Contributing</span></a> - Full contribution guide</p></li>
+<li><p><a class="reference internal" href="testing.html"><span class="doc">Testing</span></a> - Testing details</p></li>
+<li><p><a class="reference internal" href="known-issues.html"><span class="doc">Known Issues</span></a> - Current bugs and limitations</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="known-issues.html" class="btn btn-neutral float-left" title="Known Issues" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../reference/configuration-options.html" class="btn btn-neutral float-right" title="Configuration Options" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2025, Jørgen Cederberg and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

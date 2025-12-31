@@ -40,7 +40,8 @@ release = ""
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ["sphinx.ext.autodoc", "sphinxcontrib.matlab", "sphinx.ext.napoleon"]
-matlab_src_dir = os.path.dirname(os.path.abspath(__file__))
+matlab_src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
+print(f"Looking for MATLAB sources in: {matlab_src_dir}")
 primary_domain = "mat"
 
 

@@ -82,19 +82,8 @@ Create a ``src`` directory next to ``docs`` and add a MATLAB file:
 
 Create a file ``src/hello.m``:
 
-.. code-block:: matlab
-
-   function greeting = hello(name)
-   % HELLO Say hello to someone
-   %
-   % Args:
-   %     name (char): The name of the person to greet
-   %
-   % Returns:
-   %     char: A greeting message
-
-   greeting = ['Hello, ' name '!'];
-   end
+.. literalinclude:: ../src/hello.m
+   :language: matlab
 
 Step 4: Document Your Code
 ===========================
@@ -136,7 +125,9 @@ Open the generated documentation:
    # On Windows
    start _build/html/index.html # or call it directly: _build/html/index.html
 
-You should see your documentation with the ``hello`` function documented!
+You should see your documentation with the ``hello`` function documented! As shown below:
+
+.. mat:autofunction:: hello
 
 What Just Happened?
 ===================

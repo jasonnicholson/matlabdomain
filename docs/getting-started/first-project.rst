@@ -169,77 +169,35 @@ Let's create some example MATLAB files to document.
 
 **src/hello.m** - A simple function:
 
-.. code-block:: matlab
+.. literalinclude:: ../src/hello.m
+   :language: matlab
 
-   function greeting = hello(name)
-   % HELLO Say hello to someone
-   %
-   % Args:
-   %     name (char): Name of the person to greet
-   %
-   % Returns:
-   %     char: A greeting message
-   %
-   % Example:
-   %     >> greeting = hello('World')
-   %     greeting = 'Hello, World!'
+**src/times_two.m** - A simple function:
 
-   greeting = ['Hello, ' name '!'];
-   end
+.. literalinclude:: ../src/times_two.m
+   :language: matlab
+
+**src/times_two_napoleon.m** - A simple function:
+
+.. literalinclude:: ../src/times_two_napoleon.m
+   :language: matlab
 
 **src/Calculator.m** - A class:
 
 .. code-block:: matlab
 
-   classdef Calculator
-       % CALCULATOR A simple calculator class
-       %
-       % This class demonstrates basic arithmetic operations.
+.. literalinclude:: ../src/Calculator.m
+   :language: matlab
 
-       methods
-           function result = add(obj, a, b)
-               % ADD Add two numbers
-               %
-               % Args:
-               %     a (double): First number
-               %     b (double): Second number
-               %
-               % Returns:
-               %     double: Sum of a and b
+**src/+mypackage/double_value.m** - A package function:
 
-               result = a + b;
-           end
+.. literalinclude:: ../src/+mypackage/double_value.m
+   :language: matlab
 
-           function result = multiply(obj, a, b)
-               % MULTIPLY Multiply two numbers
-               %
-               % Args:
-               %     a (double): First number
-               %     b (double): Second number
-               %
-               % Returns:
-               %     double: Product of a and b
+**src/+mypackage/Calculator.m** - A package class:
 
-               result = a * b;
-           end
-       end
-   end
-
-**src/+mypackage/utils.m** - A package function:
-
-.. code-block:: matlab
-
-   function result = double_value(x)
-   % DOUBLE_VALUE Double a numeric value
-   %
-   % Args:
-   %     x (double): Input value
-   %
-   % Returns:
-   %     double: Value multiplied by 2
-
-   result = x * 2;
-   end
+.. literalinclude:: ../src/+mypackage/Calculator.m
+   :language: matlab
 
 The documentation comments are called docstrings. Sphinx will extract these to build your docs. They
 are reStructuredText formatted. When you use Napoleon, you can write them in Google style as shown above.
@@ -287,6 +245,42 @@ toctree includes the generated entry:
       :caption: Contents:
 
       api/index
+
+The `api/index.rst` file is the main entry point for your API documentation. It looks like:
+
+  .. code-block:: rst
+
+   MATLAB API Documentation
+   ========================
+
+   .. toctree::
+      :maxdepth: 2
+      :caption: Modules:
+
+      mypackage
+      global_namespace
+
+   Indices and tables
+   ==================
+
+   * :ref:`genindex`
+   * :ref:`modindex`
+   * :ref:`search`
+
+`api/mypackage.rst` looks like:
+
+   .. literalinclude:: /api/mypackage.rst
+      :language: rst
+
+`api/global_namespace.rst` looks like:
+
+   .. literalinclude:: /api/global_namespace.rst
+      :language: rst
+
+
+Click :doc:`/api/index` to explore the rendered API documentation structure. Note, the API documentation
+is not add to this sites toctree on purpose and the only like to it is in the previous sentence. On your site,
+you should add it to the toctree in ``index.rst`` so users can find it easily.
 
 Regenerate after adding or deleting source files
 --------------------------------------------------

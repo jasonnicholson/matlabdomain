@@ -1,3 +1,58 @@
+[build-system]
+requires = ["setuptools>=40.8.0", "setuptools_scm<6.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sphinxcontrib-matlabdomain"
+description = 'Sphinx "matlabdomain" extension'
+readme = "README.rst"
+requires-python = ">=3.10.0"
+license = {text = "BSD"}
+authors = [
+    {name = "Jørgen Cederberg", email = "jorgen@cederberg.be"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Documentation",
+    "Topic :: Utilities",
+    "Framework :: Sphinx :: Extension",
+    "Framework :: Sphinx :: Domain",
+]
+dependencies = [
+    "Sphinx>=7.0.0",
+    "tree-sitter-matlab>=1.0.2,<1.0.5",
+    "tree-sitter>=0.21.3,<0.23.0",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/sphinx-contrib/matlabdomain"
+Download = "http://pypi.python.org/pypi/sphinxcontrib-matlabdomain"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pre-commit",
+    "defusedxml>=0.7.1",
+    "sphinxcontrib-napoleon",
+]
+rtd = [
+    "sphinx_rtd_theme",
+    "sphinxcontrib-napoleon",
+]
+
+[tool.setuptools]
+packages = ["sphinxcontrib"]
+namespace-packages = ["sphinxcontrib"]
+include-package-data = true
+
 [tool.ruff]
 include = [
     "tests/**/*.py",

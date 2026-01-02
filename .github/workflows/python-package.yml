@@ -49,9 +49,9 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         architecture: x64
-    - name: Run with Tox
+    - name: Install dev dependencies and run tests with Tox
       run: |
-        pip install tox==4.8.0
+        pip install -e .[dev]
         tox -e "${{matrix.python-version}}-sphinx${{matrix.sphinx-version}}"
 
 

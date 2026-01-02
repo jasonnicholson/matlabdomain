@@ -55,7 +55,7 @@ skip = "./.git"
 
 
 [tool.pytest.ini_options]
-addopts = "-ra --strict-config --strict-markers --show-capture=all --showlocals -s -vv"
+addopts = "-ra --strict-config --strict-markers --show-capture=all --showlocals -s -vv --cov=sphinxcontrib --cov=tests --cov-report=term"
 doctest_optionflags = "NORMALIZE_WHITESPACE ELLIPSIS"
 junit_family = "xunit2"
 log_cli_level = "INFO"
@@ -63,6 +63,35 @@ xfail_strict = true
 
 [tool.coverage.run]
 branch = true
-omit =    [
-        '*/_build/*',
-    ]
+omit = [
+    '*/_build/*',
+    'sphinxcontrib/__init__.py',
+]
+
+
+# Please update the GitHub Actions workflow if you change the envlist here
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py{310,311,312,313,314}-sphinx{70,latest}
+
+[testenv]
+passenv =
+    USERNAME
+    PY_COLORS
+    FORCE_COLOR
+    NO_COLOR
+    CLICOLOR
+    CLICOLOR_FORCE
+deps =
+    pytest
+    pytest-cov
+    defusedxml
+    sphinx70: Sphinx>=7.0,<8.0
+    sphinxlatest: Sphinx
+    sphinxdev: https://github.com/sphinx-doc/sphinx/archive/refs/heads/master.zip
+commands =
+    pytest {posargs}
+    sphinx-build -b html -d {envtmpdir}/doctrees tests/test_docs {envtmpdir}/html
+"""
+

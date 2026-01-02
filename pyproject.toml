@@ -48,10 +48,14 @@ rtd = [
     "sphinxcontrib-napoleon",
 ]
 
+[tool.setuptools_scm]
+
 [tool.setuptools]
-packages = ["sphinxcontrib"]
 namespace-packages = ["sphinxcontrib"]
 include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["sphinxcontrib*"]
 
 [tool.ruff]
 include = [

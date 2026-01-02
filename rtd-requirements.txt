@@ -1,3 +1,2 @@
--e .
-sphinx_rtd_theme
-sphinxcontrib-napoleon
+-e .[rtd]
+

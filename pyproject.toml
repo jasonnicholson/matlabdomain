@@ -57,6 +57,13 @@ include-package-data = true
 [tool.setuptools.packages.find]
 include = ["sphinxcontrib*"]
 
+[tool.setuptools.package-data]
+"*" = [
+    "README.rst",
+    "LICENSE",
+    "CHANGES.*",
+]
+
 [tool.ruff]
 include = [
     "tests/**/*.py",

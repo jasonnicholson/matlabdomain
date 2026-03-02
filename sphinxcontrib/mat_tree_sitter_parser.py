@@ -2,10 +2,23 @@ import re
 from importlib.metadata import version
 
 import tree_sitter_matlab as tsml
-from tree_sitter import Language
+from sphinx.util.logging import getLogger
 
-# Attribute default dictionary used to give default values
-# for e.g. `Abstract` or `Static` when used without
+
+def get_nodes(match_dict, key):
+    res = match_dict.get(key)
+    if res:
+        return sorted(res, key=lambda x: x.start_byte if hasattr(x, 'start_byte') else 0)
+    return []
+def get_node(match_dict, key):
+    res = match_dict.get(key)
+    return res[0] if res else None
+
+from tree_sitter import Language, Query, QueryCursor
+
+logger = getLogger("matlab-domain")
+
+# Attribute default dictionary used to give default values for e.g. `Abstract` or `Static` when used without
 # a right hand side i.e. `classdef (Abstract)` vs `classdef (Abstract=true)`
 # From:
 #  - http://www.mathworks.com/help/matlab/matlab_oop/class-attributes.html
@@ -41,14 +54,14 @@ MATLAB_ATTRIBUTE_DEFAULTS = {
 }
 
 
-tree_sitter_ver = tuple(int(sec) for sec in version("tree_sitter").split("."))
+tree_sitter_ver = tuple([int(sec) for sec in version("tree_sitter").split(".")])
 if tree_sitter_ver[1] == 21:
     ML_LANG = Language(tsml.language(), "matlab")
 else:
     ML_LANG = Language(tsml.language())
 
 # QUERIES
-q_classdef = ML_LANG.query(
+q_classdef = Query(ML_LANG, 
     """(class_definition
     .
     "classdef"
@@ -64,11 +77,11 @@ q_classdef = ML_LANG.query(
     )?
     .
     (comment)? @docstring
-    ) @class
+    ) @prop_node @class
 """
 )
 
-q_attributes = ML_LANG.query(
+q_attributes = Query(ML_LANG, 
     """(attribute
     (identifier) @name
     [
@@ -82,9 +95,9 @@ q_attributes = ML_LANG.query(
     """
 )
 
-q_supers = ML_LANG.query("""[(identifier) @secs "."]+ """)
+q_supers = Query(ML_LANG, """[(identifier) @secs "."]+ """)
 
-q_properties = ML_LANG.query(
+q_properties = Query(ML_LANG, 
     """(properties
     .
     (attributes
@@ -95,7 +108,7 @@ q_properties = ML_LANG.query(
 """
 )
 
-q_methods = ML_LANG.query(
+q_methods = Query(ML_LANG, 
     """(methods
     (attributes
         [(attribute) @attrs _]+
@@ -105,14 +118,14 @@ q_methods = ML_LANG.query(
 """
 )
 
-q_enumerations = ML_LANG.query(
+q_enumerations = Query(ML_LANG, 
     """(enumeration
     [(enum) @enums _]+
     ) @enum_block
 """
 )
 
-q_events = ML_LANG.query(
+q_events = Query(ML_LANG, 
     """(events
     (attributes
         [(attribute) @attrs _]+
@@ -122,7 +135,7 @@ q_events = ML_LANG.query(
 """
 )
 
-q_property = ML_LANG.query(
+q_property = Query(ML_LANG, 
     """
     (property name: (identifier) @name
      (dimensions
@@ -136,22 +149,22 @@ q_property = ML_LANG.query(
      )?
      (default_value)? @default
      (comment)? @docstring
-    )
+    ) @prop_node
 """
 )
 
-q_old_property = ML_LANG.query(
+q_old_property = Query(ML_LANG, 
     """
     (property name: (identifier) @name
      (identifier) @type
      (identifier)? @size_type
      (default_value)? @default
      (comment)? @docstring
-    )
+    ) @prop_node
 """
 )
 
-q_enum = ML_LANG.query(
+q_enum = Query(ML_LANG, 
     """(enum
     .
     (identifier) @name
@@ -160,7 +173,7 @@ q_enum = ML_LANG.query(
 """
 )
 
-q_fun = ML_LANG.query(
+q_fun = Query(ML_LANG, 
     """(function_definition
     _*
     (function_output
@@ -181,11 +194,11 @@ q_fun = ML_LANG.query(
     [(arguments_statement) @argblocks _]*
     .
     (comment)? @docstring
-    )
+    ) @prop_node
 """
 )
 
-q_argblock = ML_LANG.query(
+q_argblock = Query(ML_LANG, 
     """
     (arguments_statement
     .
@@ -198,7 +211,7 @@ q_argblock = ML_LANG.query(
 """
 )
 
-q_arg = ML_LANG.query(
+q_arg = Query(ML_LANG, 
     """
     (property name:
         [
@@ -216,41 +229,42 @@ q_arg = ML_LANG.query(
      )?
      (default_value [(number) (identifier)])? @default
      (comment)? @docstring
-    )
+    ) @prop_node
 """
 )
 
-q_script = ML_LANG.query(
+q_script = Query(ML_LANG, 
     """
     (source_file
         (comment)? @docstring
-    )
+    ) @prop_node
     """
 )
 
-q_get_set = ML_LANG.query("""["get." "set."]""")
+q_get_set = Query(ML_LANG, """["get." "set."]""")
 
-q_line_continuation = ML_LANG.query("(line_continuation) @lc")
+q_line_continuation = Query(ML_LANG, "(line_continuation) @lc")
 
 
-re_percent_remove = re.compile(r"^[ \t]*% ?", flags=re.MULTILINE)
-re_trim_line = re.compile(r"^[ \t]*", flags=re.MULTILINE)
+re_percent_remove = re.compile(r"^[ \t]*% ?", flags=re.M)
+re_trim_line = re.compile(r"^[ \t]*", flags=re.M)
 re_assign_remove = re.compile(r"^=[ \t]*")
 
 
 def tree_sitter_is_0_21():
-    """Check if tree-sitter is v0.21.* \
-        in order to use the correct language initialization and syntax.
-    """
+    """Check if tree-sitter is v0.21.* in order to use the correct language initialization and syntax."""
     if not hasattr(tree_sitter_is_0_21, "is_21"):
-        tree_sitter_ver = tuple(int(sec) for sec in version("tree_sitter").split("."))
+        tree_sitter_ver = tuple([int(sec) for sec in version("tree_sitter").split(".")])
         tree_sitter_is_0_21.is_21 = tree_sitter_ver[1] == 21  # memoize
     return tree_sitter_is_0_21.is_21
 
 
 def get_row(point):
-    """Get row from point. This api changed from v0.21.3 to v0.22.0."""
-    return point[0] if tree_sitter_is_0_21() else point.row
+    """Get row from point. This api changed from v0.21.3 to v0.22.0"""
+    if tree_sitter_is_0_21():
+        return point[0]
+    else:
+        return point.row
 
 
 def process_text_into_docstring(text, encoding):
@@ -260,15 +274,13 @@ def process_text_into_docstring(text, encoding):
 
 
 def process_default(node, encoding):
-    """Take the node defining a default and remove any line continuations \
-        before generating the default.
-    """
+    """Take the node defining a default and remove any line continuations before generating the default."""
     text = node.text
     to_keep = set(range(node.end_byte - node.start_byte))
-    lc_matches = q_line_continuation.matches(node)
+    lc_matches = QueryCursor(q_line_continuation).matches(node)
     for _, match in lc_matches:
         # TODO this copies a lot perhaps there is a better option.
-        lc = match["lc"]
+        lc = match["lc"][0]
         cut_start = lc.start_byte - node.start_byte
         cut_end = lc.end_byte - node.start_byte
         to_keep -= set(range(cut_start, cut_end))
@@ -278,9 +290,8 @@ def process_default(node, encoding):
     new_text = b"".join(
         [byte.to_bytes(1, "big") for idx, byte in enumerate(text) if idx in to_keep]
     )
-    # TODO We may want to do an in-order traversal of the parse here
-    # to generate a "nice" reformatted single line
-    # however doing so sufficiently generically is likely a major undertaking.
+    # TODO We may want to do an in-order traversal of the parse here to generate a "nice" reformatted single line
+    #      however doing so sufficiently generically is likely a major undertaking.
     default = new_text.decode(encoding, errors="backslashreplace")
     default = re.sub(re_assign_remove, "", default)
     return re.sub(re_trim_line, "", default)
@@ -288,11 +299,12 @@ def process_default(node, encoding):
 
 class MatScriptParser:
     def __init__(self, root_node, encoding):
-        """Parse m script."""
+        """Parse m script"""
         self.encoding = encoding
-        if _ := q_script.matches(root_node):
-            _, script_match = q_script.matches(root_node)[0]
-            docstring_node = script_match.get("docstring")
+        script_matches = list(QueryCursor(q_script).matches(root_node))
+        if script_matches:
+            script_match = QueryCursor(q_script).captures(root_node)
+            docstring_node = get_node(script_match, "docstring")
             if docstring_node is not None:
                 self.docstring = process_text_into_docstring(
                     docstring_node.text, self.encoding
@@ -305,16 +317,18 @@ class MatScriptParser:
 
 class MatFunctionParser:
     def __init__(self, root_node, encoding):
-        """Parse Function definition."""
+        """Parse Function definition"""
         self.encoding = encoding
-        _, fun_match = q_fun.matches(root_node)[0]
-        self.name = fun_match.get("name").text.decode(
+        fun_nodes = [m[1]["f"][0] for m in QueryCursor(Query(ML_LANG, "(function_definition) @f")).matches(root_node)]
+        fun_node = fun_nodes[0] if fun_nodes else root_node
+        fun_match = QueryCursor(q_fun).captures(fun_node)
+        self.name = get_node(fun_match, "name").text.decode(
             self.encoding, errors="backslashreplace"
         )
 
         # Get outputs (possibly more than one)
         self.retv = {}
-        output_nodes = fun_match.get("outputs")
+        output_nodes = get_nodes(fun_match, "outputs")
         if output_nodes is not None:
             retv = [
                 output.text.decode(self.encoding, errors="backslashreplace")
@@ -325,7 +339,7 @@ class MatFunctionParser:
 
         # Get parameters
         self.args = {}
-        arg_nodes = fun_match.get("params")
+        arg_nodes = get_nodes(fun_match, "params")
         if arg_nodes is not None:
             args = [
                 arg.text.decode(self.encoding, errors="backslashreplace")
@@ -341,14 +355,13 @@ class MatFunctionParser:
                 self._parse_argument_section(argblock_node)
 
         # get docstring
-        docstring_node = fun_match.get("docstring")
+        docstring_node = get_node(fun_match, "docstring")
         docstring = ""
         if docstring_node is not None:
             prev_sib = docstring_node.prev_named_sibling
             if get_row(docstring_node.start_point) - get_row(prev_sib.end_point) <= 1:
                 if get_row(docstring_node.start_point) == get_row(prev_sib.end_point):
-                    # if the docstring is on the same line
-                    # as the end of the function drop it
+                    # if the docstring is on the same line as the end of the function drop it
                     docstring = process_text_into_docstring(
                         docstring_node.text, self.encoding
                     )
@@ -364,17 +377,21 @@ class MatFunctionParser:
         self.docstring = docstring
 
     def _parse_argument_section(self, argblock_node):
-        _, argblock_match = q_argblock.matches(argblock_node)[0]
+        argblock_match = QueryCursor(q_argblock).captures(argblock_node)
         attrs_nodes = argblock_match.get("attrs")
         attrs = self._parse_attributes(attrs_nodes)
 
         arguments = argblock_match.get("args")
 
+        # Bug fix: Check if arguments is None before iterating
+        if arguments is None:
+            return
+
         # TODO this is almost identical to property parsing.
         #      might be a good idea to extract common code here.
         for arg in arguments:
             # match property to extract details
-            _, arg_match = q_arg.matches(arg)[0]
+            arg_match = list(QueryCursor(q_arg).matches(arg))[0][1]
 
             # extract name (this is always available so no need for None check)
             name = [
@@ -383,16 +400,18 @@ class MatFunctionParser:
             ]
 
             # extract dims list
-            dims_list = arg_match.get("dims")
+            dims_list = get_nodes(arg_match, "dims")
             dims = None
-            if dims_list is not None:
+            if dims_list:
                 dims = tuple(
-                    dim.text.decode(self.encoding, errors="backslashreplace")
-                    for dim in dims_list
+                    [
+                        dim.text.decode(self.encoding, errors="backslashreplace")
+                        for dim in dims_list
+                    ]
                 )
 
             # extract type
-            type_node = arg_match.get("type")
+            type_node = get_node(arg_match, "type")
             typename = (
                 type_node.text.decode(self.encoding, errors="backslashreplace")
                 if type_node is not None
@@ -400,16 +419,16 @@ class MatFunctionParser:
             )
 
             # extract validator functions
-            vf_list = arg_match.get("validation_functions")
+            vf_list = get_nodes(arg_match, "validation_functions")
             vfs = None
-            if vf_list is not None:
+            if vf_list:
                 vfs = [
                     vf.text.decode(self.encoding, errors="backslashreplace")
                     for vf in vf_list
                 ]
 
             # extract default
-            default_node = arg_match.get("default")
+            default_node = get_node(arg_match, "default")
             default = (
                 process_default(default_node, self.encoding)
                 if default_node is not None
@@ -417,7 +436,11 @@ class MatFunctionParser:
             )
 
             # extract inline or following docstring if there is no semicolon
-            docstring_node = arg_match.get("docstring")
+            docstring_node = get_node(arg_match, "docstring")
+            if docstring_node is None:
+                prop_node = get_node(arg_match, "prop_node")
+                if prop_node and prop_node.next_sibling and prop_node.next_sibling.type == "comment":
+                    docstring_node = prop_node.next_sibling
             docstring = ""
             if docstring_node is not None:
                 # tree-sitter-matlab combines inline comments with following
@@ -425,8 +448,7 @@ class MatFunctionParser:
                 # processing, but worth it for the ease of the rest of it.
                 prev_sib = docstring_node.prev_named_sibling
                 if get_row(docstring_node.start_point) == get_row(prev_sib.end_point):
-                    # if the docstring is on the same line
-                    # as the end of the definition only take the inline part
+                    # if the docstring is on the same line as the end of the definition only take the inline part
                     docstring = process_text_into_docstring(
                         docstring_node.text, self.encoding
                     )
@@ -441,16 +463,14 @@ class MatFunctionParser:
                     )
 
             # extract inline or following docstring if there _is_ a semicolon.
-            # this is only done
-            # if we didn't already find a docstring with the previous approach
+            # this is only done if we didn't already find a docstring with the previous approach
             next_node = arg.next_named_sibling
             if next_node is None or docstring is not None:
                 # Nothing to be done.
                 pass
             elif next_node.type == "comment":
                 if get_row(next_node.start_point) == get_row(arg.end_point):
-                    # if the docstring is on the same line
-                    # as the end of the definition only take the inline part
+                    # if the docstring is on the same line as the end of the definition only take the inline part
                     docstring = process_text_into_docstring(
                         next_node.text, self.encoding
                     )
@@ -474,46 +494,42 @@ class MatFunctionParser:
                 if get_row(arg.start_point) - get_row(prev_node.end_point) <= 1:
                     ds = process_text_into_docstring(prev_node.text, self.encoding)
                     prev_arg = prev_node.prev_named_sibling
-                    if (
-                        prev_arg is not None
-                        and prev_arg.type == "property"
-                        and get_row(prev_node.start_point)
-                        == get_row(prev_arg.end_point)
-                    ):
-                        ds = "\n".join(ds.split("\n")[1:])
+                    if prev_arg is not None and prev_arg.type == "property":
+                        if get_row(prev_node.start_point) == get_row(
+                            prev_arg.end_point
+                        ):
+                            ds = "\n".join(ds.split("\n")[1:])
                     if ds:
                         docstring = ds
-                elif get_row(arg.start_point) - get_row(prev_node.end_point) <= 1:
-                    docstring = process_text_into_docstring(
-                        prev_node.text, self.encoding
-                    )
+                else:
+                    if get_row(arg.start_point) - get_row(prev_node.end_point) <= 1:
+                        docstring = process_text_into_docstring(
+                            prev_node.text, self.encoding
+                        )
             elif prev_node.type == "property":
                 # The previous argumentnode may have eaten our comment
                 # check for it a trailing comment. If it is not there
                 # then we stop looking.
                 prev_comment = prev_node.named_children[-1]
-                # we now need to check if prev_comment ends on the line
-                # before ours and trim the first line if it on the same
-                # line as prev property.
-                if (
-                    prev_comment.type == "comment"
-                    and get_row(arg.start_point) - get_row(prev_comment.end_point) <= 1
-                ):
-                    ds = process_text_into_docstring(prev_comment.text, self.encoding)
-                    if get_row(prev_comment.start_point) == get_row(
-                        prev_comment.prev_named_sibling.end_point
-                    ):
-                        ds = "\n".join(ds.split("\n")[1:])
-                    if ds:
-                        docstring = ds
-
+                if prev_comment.type == "comment":
+                    # we now need to check if prev_comment ends on the line
+                    # before ours and trim the first line if it on the same
+                    # line as prev property.
+                    if get_row(arg.start_point) - get_row(prev_comment.end_point) <= 1:
+                        ds = process_text_into_docstring(
+                            prev_comment.text, self.encoding
+                        )
+                        if get_row(prev_comment.start_point) == get_row(
+                            prev_comment.prev_named_sibling.end_point
+                        ):
+                            ds = "\n".join(ds.split("\n")[1:])
+                        if ds:
+                            docstring = ds
             # After all that if our docstring is empty then we have none
             if not docstring.strip():
                 docstring = None
             else:
-                # TODO
-                # docstring = docstring.rstrip() # noqa : ERA001
-                pass
+                pass  # docstring = docstring.rstrip()
 
             # Here we trust that the person is giving us valid matlab.
             arg_loc = self.retv if "Output" in attrs else self.args
@@ -527,9 +543,8 @@ class MatFunctionParser:
                     "docstring": docstring,
                 }
             else:
-                pass
-                # TODO
                 # how to handle dotted args
+                pass
 
     def _parse_attributes(self, attrs_nodes):
         attrs = {}
@@ -556,10 +571,27 @@ class MatClassParser:
         self.root_node = root_node
 
         # Parse class basics
-        class_matches = q_classdef.matches(root_node)
+        class_matches = list(QueryCursor(q_classdef).matches(root_node))
+
+        # Bug fix: Handle empty matches gracefully
+        if not class_matches:
+            logger.warning(
+                "[sphinxcontrib-matlabdomain] No class definition found in file, skipping"
+            )
+            # Set minimal attributes to avoid crashes
+            self.cls = None
+            self.name = None
+            self.attrs = {}
+            self.supers = []
+            self.docstring = ""
+            self.properties = {}
+            self.methods = {}
+            self.enumerations = {}
+            return
+
         _, class_match = class_matches[0]
-        self.cls = class_match.get("class")
-        self.name = class_match.get("name")
+        self.cls = get_node(class_match, "class")
+        self.name = get_node(class_match, "name")
 
         # Parse class attrs and supers
         attrs_nodes = class_match.get("attrs")
@@ -568,22 +600,21 @@ class MatClassParser:
         supers_nodes = class_match.get("supers")
         if supers_nodes is not None:
             for super_node in supers_nodes:
-                _, super_match = q_supers.matches(super_node)[0]
+                super_match = list(QueryCursor(q_supers).matches(super_node))[0][1]
                 super_cls = [
                     sec.text.decode(self.encoding, errors="backslashreplace")
-                    for sec in super_match.get("secs")
+                    for sec in get_nodes(super_match, "secs")
                 ]
                 self.supers.append(".".join(super_cls))
 
         # get docstring and check that it consecutive
-        docstring_node = class_match.get("docstring")
+        docstring_node = get_node(class_match, "docstring")
         docstring = ""
         if docstring_node is not None:
             prev_node = docstring_node.prev_sibling
             if get_row(docstring_node.start_point) - get_row(prev_node.end_point) <= 1:
                 if get_row(docstring_node.start_point) == get_row(prev_node.end_point):
-                    # if the docstring is on the same line
-                    # as the end of the classdef drop it
+                    # if the docstring is on the same line as the end of the classdef drop it
                     docstring = process_text_into_docstring(
                         docstring_node.text, self.encoding
                     )
@@ -595,10 +626,10 @@ class MatClassParser:
                     )
         self.docstring = docstring
 
-        prop_matches = q_properties.matches(self.cls)
-        method_matches = q_methods.matches(self.cls)
-        enum_matches = q_enumerations.matches(self.cls)
-        event_matches = q_events.matches(self.cls)
+        prop_matches = list(QueryCursor(q_properties).matches(self.cls))
+        method_matches = list(QueryCursor(q_methods).matches(self.cls))
+        enum_matches = list(QueryCursor(q_enumerations).matches(self.cls))
+        event_matches = list(QueryCursor(q_events).matches(self.cls))
 
         for _, prop_match in prop_matches:
             self._parse_property_section(prop_match)
@@ -618,20 +649,22 @@ class MatClassParser:
         attrs = self._parse_attributes(attrs_nodes)
         for prop in properties:
             # match property to extract details
-            _, prop_match = q_property.matches(prop)[0]
+            prop_match = list(QueryCursor(q_property).matches(prop))[0][1]
             # extract name (this is always available so no need for None check)
-            name = prop_match.get("name").text.decode(
+            name = get_node(prop_match, "name").text.decode(
                 self.encoding, errors="backslashreplace"
             )
 
             # extract dims list
-            size_type = prop_match.get("size_type")
-            dims_list = prop_match.get("dims")
+            size_type = get_node(prop_match, "size_type")
+            dims_list = get_nodes(prop_match, "dims")
             dims = None
-            if dims_list is not None:
+            if dims_list:
                 dims = tuple(
-                    dim.text.decode(self.encoding, errors="backslashreplace")
-                    for dim in dims_list
+                    [
+                        dim.text.decode(self.encoding, errors="backslashreplace")
+                        for dim in dims_list
+                    ]
                 )
             elif size_type is None:
                 dims = None
@@ -643,16 +676,16 @@ class MatClassParser:
                 dims = (":", ":")
 
             # extract validator functions
-            vf_list = prop_match.get("validation_functions")
+            vf_list = get_nodes(prop_match, "validation_functions")
             vfs = None
-            if vf_list is not None:
+            if vf_list:
                 vfs = [
                     vf.text.decode(self.encoding, errors="backslashreplace")
                     for vf in vf_list
                 ]
 
             # extract type
-            type_node = prop_match.get("type")
+            type_node = get_node(prop_match, "type")
             typename = (
                 type_node.text.decode(self.encoding, errors="backslashreplace")
                 if type_node is not None
@@ -660,7 +693,7 @@ class MatClassParser:
             )
 
             # extract default
-            default_node = prop_match.get("default")
+            default_node = get_node(prop_match, "default")
             default = (
                 process_default(default_node, self.encoding)
                 if default_node is not None
@@ -668,7 +701,11 @@ class MatClassParser:
             )
 
             # extract inline or following docstring if there is no semicolon
-            docstring_node = prop_match.get("docstring")
+            docstring_node = get_node(prop_match, "docstring")
+            if docstring_node is None:
+                prop_node = get_node(prop_match, "prop_node")
+                if prop_node and prop_node.next_sibling and prop_node.next_sibling.type == "comment":
+                    docstring_node = prop_node.next_sibling
             docstring = ""
             if docstring_node is not None:
                 # tree-sitter-matlab combines inline comments with following
@@ -676,8 +713,7 @@ class MatClassParser:
                 # processing, but worth it for the ease of the rest of it.
                 prev_sib = docstring_node.prev_named_sibling
                 if get_row(docstring_node.start_point) == get_row(prev_sib.end_point):
-                    # if the docstring is on the same line
-                    # as the end of the definition only take the inline part
+                    # if the docstring is on the same line as the end of the definition only take the inline part
                     docstring = process_text_into_docstring(
                         docstring_node.text, self.encoding
                     )
@@ -692,16 +728,14 @@ class MatClassParser:
                     )
 
             # extract inline or following docstring if there _is_ a semicolon.
-            # this is only done if we didn't already find a docstring
-            # with the previous approach
+            # this is only done if we didn't already find a docstring with the previous approach
             next_node = prop.next_named_sibling
             if next_node is None or docstring != "":
                 # Nothing to be done.
                 pass
             elif next_node.type == "comment":
                 if get_row(next_node.start_point) == get_row(prop.end_point):
-                    # if the docstring is on the same line
-                    # as the end of the definition only take the inline part
+                    # if the docstring is on the same line as the end of the definition only take the inline part
                     docstring = process_text_into_docstring(
                         next_node.text, self.encoding
                     )
@@ -725,42 +759,44 @@ class MatClassParser:
                 if get_row(prop.start_point) - get_row(prev_node.end_point) <= 1:
                     ds = process_text_into_docstring(prev_node.text, self.encoding)
                     prev_prop = prev_node.prev_named_sibling
-                    if (
-                        prev_prop is not None
-                        and prev_prop.type == "property"
-                        and get_row(prev_node.start_point)
-                        == get_row(prev_prop.end_point)
-                    ):
-                        ds = "\n".join(ds.split("\n")[1:])
+                    if prev_prop is not None and prev_prop.type == "property":
+                        if get_row(prev_node.start_point) == get_row(
+                            prev_prop.end_point
+                        ):
+                            ds = "\n".join(ds.split("\n")[1:])
 
                     if ds:
                         docstring = ds
-                elif get_row(prop.start_point) - get_row(prev_node.end_point) <= 1:
-                    docstring = process_text_into_docstring(
-                        prev_node.text, self.encoding
-                    )
+                else:
+                    if get_row(prop.start_point) - get_row(prev_node.end_point) <= 1:
+                        docstring = process_text_into_docstring(
+                            prev_node.text, self.encoding
+                        )
             elif prev_node.type == "property":
                 # The previous property node may have eaten our comment
                 # check for it a trailing comment. If it is not there
                 # then we stop looking.
                 prev_comment = prev_node.named_children[-1]
-                # we now need to check if prev_comment ends on the line
-                # before ours and trim the first line if it on the same
-                # line as prev property.
-                if (
-                    prev_comment.type == "comment"
-                    and get_row(prop.start_point) - get_row(prev_comment.end_point) <= 1
-                ):
-                    ds = process_text_into_docstring(prev_comment.text, self.encoding)
-                    if get_row(prev_comment.start_point) == get_row(
-                        prev_comment.prev_named_sibling.end_point
-                    ):
-                        ds = "\n".join(ds.split("\n")[1:])
-                    if ds:
-                        docstring = ds
+                if prev_comment.type == "comment":
+                    # we now need to check if prev_comment ends on the line
+                    # before ours and trim the first line if it on the same
+                    # line as prev property.
+                    if get_row(prop.start_point) - get_row(prev_comment.end_point) <= 1:
+                        ds = process_text_into_docstring(
+                            prev_comment.text, self.encoding
+                        )
+                        if get_row(prev_comment.start_point) == get_row(
+                            prev_comment.prev_named_sibling.end_point
+                        ):
+                            ds = "\n".join(ds.split("\n")[1:])
+                        if ds:
+                            docstring = ds
             # After all that if our docstring is empty then we have none
             if not docstring.strip():
                 docstring = None
+            else:
+                pass  # docstring = docstring.rstrip()
+
             self.properties[name] = {
                 "attrs": attrs,
                 "size": dims,
@@ -777,7 +813,7 @@ class MatClassParser:
         attrs_nodes = methods_match.get("attrs")
         attrs = self._parse_attributes(attrs_nodes)
         for method in methods:
-            is_set_get = q_get_set.matches(method)
+            is_set_get = list(QueryCursor(q_get_set).matches(method))
             # Skip getter and setter
             if len(is_set_get) > 0:
                 continue
@@ -790,8 +826,8 @@ class MatClassParser:
         if enums is None:
             return
         for enum in enums:
-            _, enum_match = q_enum.matches(enum)[0]
-            name = enum_match.get("name").text.decode(
+            enum_match = list(QueryCursor(q_enum).matches(enum))[0][1]
+            name = get_node(enum_match, "name").text.decode(
                 self.encoding, errors="backslashreplace"
             )
             arg_nodes = enum_match.get("args")
@@ -808,8 +844,7 @@ class MatClassParser:
             next_node = enum.next_named_sibling
             if next_node is not None and next_node.type == "comment":
                 if get_row(next_node.start_point) == get_row(enum.end_point):
-                    # if the docstring is on the same line
-                    # as the end of the definition only take the inline part
+                    # if the docstring is on the same line as the end of the definition only take the inline part
                     docstring = process_text_into_docstring(
                         next_node.text, self.encoding
                     )
@@ -833,22 +868,24 @@ class MatClassParser:
                 if get_row(enum.start_point) - get_row(prev_node.end_point) <= 1:
                     ds = process_text_into_docstring(prev_node.text, self.encoding)
                     prev_enum = prev_node.prev_named_sibling
-                    if (
-                        prev_enum is not None
-                        and prev_enum.type == "enum"
-                        and get_row(prev_node.start_point)
-                        == get_row(prev_enum.end_point)
-                    ):
-                        ds = "\n".join(ds.split("\n")[1:])
+                    if prev_enum is not None and prev_enum.type == "enum":
+                        if get_row(prev_node.start_point) == get_row(
+                            prev_enum.end_point
+                        ):
+                            ds = "\n".join(ds.split("\n")[1:])
                     if ds:
                         docstring = ds
-                elif get_row(enum.start_point) - get_row(prev_node.end_point) <= 1:
-                    docstring = process_text_into_docstring(
-                        prev_node.text, self.encoding
-                    )
+                else:
+                    if get_row(enum.start_point) - get_row(prev_node.end_point) <= 1:
+                        docstring = process_text_into_docstring(
+                            prev_node.text, self.encoding
+                        )
             # After all that if our docstring is empty then we have none
             if docstring.strip() == "":
                 docstring = None
+            else:
+                pass  # docstring = docstring.rstrip()
+
             self.enumerations[name] = {"args": args, "docstring": docstring}
 
     def _parse_event_section(self, events_match):
@@ -865,8 +902,7 @@ class MatClassParser:
             next_node = event.next_named_sibling
             if next_node is not None and next_node.type == "comment":
                 if get_row(next_node.start_point) == get_row(event.end_point):
-                    # if the docstring is on the same line
-                    # as the end of the definition only take the inline part
+                    # if the docstring is on the same line as the end of the definition only take the inline part
                     docstring = process_text_into_docstring(
                         next_node.text, self.encoding
                     )
@@ -890,34 +926,36 @@ class MatClassParser:
                 if get_row(event.start_point) - get_row(prev_node.end_point) <= 1:
                     ds = process_text_into_docstring(prev_node.text, self.encoding)
                     prev_event = prev_node.prev_named_sibling
-                    if (
-                        prev_event is not None
-                        and prev_event.type == "identifier"
-                        and get_row(prev_node.start_point)
-                        == get_row(prev_event.end_point)
-                    ):
-                        ds = "\n".join(ds.split("\n")[1:])
+                    if prev_event is not None and prev_event.type == "identifier":
+                        if get_row(prev_node.start_point) == get_row(
+                            prev_event.end_point
+                        ):
+                            ds = "\n".join(ds.split("\n")[1:])
                     if ds:
                         docstring = ds
-                elif get_row(event.start_point) - get_row(prev_node.end_point) <= 1:
-                    docstring = process_text_into_docstring(
-                        prev_node.text, self.encoding
-                    )
+                else:
+                    if get_row(event.start_point) - get_row(prev_node.end_point) <= 1:
+                        docstring = process_text_into_docstring(
+                            prev_node.text, self.encoding
+                        )
             # After all that if our docstring is empty then we have none
             if docstring.strip() == "":
                 docstring = None
+            else:
+                pass  # docstring = docstring.rstrip()
+
             self.events[name] = {"attrs": attrs, "docstring": docstring}
 
     def _parse_attributes(self, attrs_nodes):
         attrs = {}
         if attrs_nodes is not None:
             for attr_node in attrs_nodes:
-                _, attr_match = q_attributes.matches(attr_node)[0]
-                name = attr_match.get("name").text.decode(
+                attr_match = QueryCursor(q_attributes).captures(attr_node)
+                name = get_node(attr_match, "name").text.decode(
                     self.encoding, errors="backslashreplace"
                 )
-                value_node = attr_match.get("value")
-                rhs_node = attr_match.get("rhs")
+                value_node = get_nodes(attr_match, "value")
+                rhs_node = get_node(attr_match, "rhs")
                 if rhs_node is not None:
                     if rhs_node.type == "cell":
                         attrs[name] = [
@@ -925,9 +963,15 @@ class MatClassParser:
                             for vn in value_node
                         ]
                     else:
-                        attrs[name] = value_node[0].text.decode(
+                        val = value_node[0].text.decode(
                             self.encoding, errors="backslashreplace"
                         )
+                        if val == "true":
+                            attrs[name] = True
+                        elif val == "false":
+                            attrs[name] = False
+                        else:
+                            attrs[name] = val
                 else:
                     attrs[name] = MATLAB_ATTRIBUTE_DEFAULTS.get(name)
 

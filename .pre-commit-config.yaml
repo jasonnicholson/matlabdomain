@@ -18,6 +18,7 @@ repos:
     hooks:
     -   id: pretty-format-toml
         args: [--autofix, --indent, '4']
+        exclude: uv.lock
 
 -   repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.10
@@ -37,3 +38,10 @@ repos:
     -   id: codespell
         args: [--toml, pyproject.toml]
         additional_dependencies: [tomli]
+
+repos:
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # Pin to a specific uv version (check the repo tags for the latest)
+    rev: 0.12.5
+    hooks:
+      - id: uv-lock

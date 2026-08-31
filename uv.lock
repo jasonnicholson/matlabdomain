@@ -984,8 +984,8 @@ requires-dist = [
     { name = "sphinx-rtd-theme", marker = "extra == 'rtd'" },
     { name = "sphinxcontrib-napoleon", marker = "extra == 'rtd'" },
     { name = "tox", marker = "extra == 'dev'", specifier = ">4.8" },
-    { name = "tree-sitter", specifier = ">=0.26.0" },
-    { name = "tree-sitter-matlab", specifier = ">=1.3.0" },
+    { name = "tree-sitter", specifier = "<=0.26.0,>=0.26.0" },
+    { name = "tree-sitter-matlab", specifier = ">=1.3.0,<=1.3.1" },
 ]
 provides-extras = ["dev", "rtd"]
 

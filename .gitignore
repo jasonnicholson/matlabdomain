@@ -14,4 +14,3 @@ htmlcov
 .coverage
 coverage.xml
 build/
-plan.md

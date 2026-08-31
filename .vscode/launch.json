@@ -1,0 +1,55 @@
+{
+    // VS Code debug configs for working on sphinx-contrib/matlabdomain (SCM).
+    // "justMyCode": false lets you step into Sphinx and tree-sitter internals.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Sphinx: Debug docs build",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sphinx.cmd.build",
+            "args": [
+                "-b", "html",
+                "${workspaceFolder}/docs",
+                "${workspaceFolder}/docs/_build/html"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "SCM: Debug profiling harness build",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sphinx.cmd.build",
+            "args": [
+                "-b", "html",
+                "-E",
+                "${workspaceFolder}/test_slow/profiling",
+                "${workspaceFolder}/test_slow/profiling/_build/html"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "SCM: Profile harness (cProfile)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_slow/profiling/profile_build.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Python: Debug current test file",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "${file}",
+                "-o", "addopts=",
+                "-vv"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

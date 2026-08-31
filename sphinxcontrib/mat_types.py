@@ -105,18 +105,39 @@ MATLAB_METHOD_ATTRIBUTE_TYPES = {
     "TestTags": list,
 }
 
-# Dictionary containing all MATLAB entities that are found in `matlab_src_dir`.
-# The dictionary keys are both the full dotted path, relative to the root.
-# Further, "short names" are added. Example:
-#   Given a dotted path of: target.+package.ClassBar
-#   Will result in a short name of: package.ClassBar
-entities_table = {}
+# The parsed-source entity model (``entities_table`` + ``entities_name_map``) is
+# owned by the live ``MATLABDomain`` instance -- it is transient (rebuilt each
+# build by ``analyze()``) and is deliberately NOT stored in ``env.domaindata``:
+# parsed ``MatObject`` values retain tree-sitter references and are not picklable.
+# Access the current build's model through ``_domain()``.
+#
+#   entities_table: full dotted path (relative to root) -> MatObject, plus added
+#     "short names" (e.g. ``target.+package.ClassBar`` -> ``package.ClassBar``).
+#   entities_name_map: names WITHOUT '+' package prefixes -> names WITH them; used
+#     only when ``matlab_auto_link`` and ``matlab_keep_package_prefix`` are set and
+#     a "see also" docstring section is encountered.
 
-# Dictionary containing a map of names WITHOUT '+' in package names to
-# the corresponding names WITH '+' in the package name. This is only
-# used if "matlab_auto_link" is on AND "matlab_keep_package_prefix"
-# is True AND a docstring with "see also" is encountered.
-entities_name_map = {}
+
+class _DetachedEntityStore:
+    """Fallback entity model for detached (non-Sphinx) parsing, e.g. unit tests
+    that call ``MatObject.matlabify`` outside a build. Real builds always own the
+    model on the live domain, so this is not used during a Sphinx build."""
+
+    def __init__(self):
+        self.entities_table = {}
+        self.entities_name_map = {}
+
+
+_detached_store = _DetachedEntityStore()
+
+
+def _domain(env=None):
+    """Return the owner of the transient entity model: the live ``mat`` domain
+    when a Sphinx build is active, else a detached fallback store."""
+    env = env or MatObject.sphinx_env
+    if env is None:
+        return _detached_store
+    return env.get_domain("mat")
 
 
 def shortest_name(dotted_path):
@@ -199,23 +220,23 @@ def recursive_log_debug(obj, indent=""):
 
 
 def populate_entities_table(obj, path=""):
-    # Recursively scan the hiearachy of entities and populate the entities_table.
-    # Bug fix: Check if obj.entities exists and is not None
+    # Recursively scan the hierarchy of entities and populate the domain's table.
     if not hasattr(obj, "entities") or obj.entities is None:
         return
 
+    dom = _domain()
     for n, o in obj.entities:
         fullpath = path + "." + o.name
         fullpath = fullpath.lstrip(".")
-        entities_table[fullpath] = o
-        entities_name_map[strip_package_prefix(fullpath)] = fullpath
+        dom.entities_table[fullpath] = o
+        dom.entities_name_map[strip_package_prefix(fullpath)] = fullpath
         if isinstance(o, MatModule):
             if o.entities:
                 populate_entities_table(o, fullpath)
 
 
-def try_get_module_entity_or_default(entity_name):
-    maybe_mod = entities_table.get(entity_name)
+def try_get_module_entity_or_default(entity_name, env=None):
+    maybe_mod = _domain(env).entities_table.get(entity_name)
     if isinstance(maybe_mod, dict):
         return maybe_mod["mod"]
     return maybe_mod
@@ -241,8 +262,16 @@ def analyze(app):
         MatObject.sphinx_env = app.env  # pass env to MatObject cls
         MatObject.sphinx_app = app  # pass app to MatObject cls
 
+        # The parsed-source model is owned by the live domain (transient, not
+        # pickled). Bind the domain's dicts locally so the rest of this function
+        # populates them in place; clear them (and the per-build analyzer cache)
+        # so nothing leaks across rebuilds.
+        dom = app.env.get_domain("mat")
+        entities_table = dom.entities_table
+        entities_name_map = dom.entities_name_map
         entities_table.clear()
         entities_name_map.clear()
+        MatModuleAnalyzer.cache.clear()
 
         # Set the root object and get root members.
         logger.debug("[sphinxcontrib-matlabdomain] Starting matlabify")
@@ -874,7 +903,7 @@ class MatClass(MatObject):
     def __bases__(self):
         bases_ = dict.fromkeys(list(self.bases))  # make copy of bases
         class_entity_table = {}
-        for name, entity in entities_table.items():
+        for name, entity in _domain().entities_table.items():
             if isinstance(entity, MatClass) or "@" in name:
                 class_entity_table[name] = entity
 

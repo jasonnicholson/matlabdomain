@@ -11,7 +11,6 @@ from sphinxcontrib.mat_types import (
     MatProperty,
     MatScript,
     classfolder_class_name,
-    entities_table,
     shortest_name,
 )
 
@@ -1141,7 +1140,7 @@ def test_script(mod):
     assert isinstance(script, MatScript)
 
 
-def test_module(dir_test_data, mod):
+def test_module(dir_test_data, mod, app):
     assert mod.getter("__name__") == "test_data"
     assert mod.getter("__path__")[0] == str(dir_test_data)
     assert mod.getter("__file__") == str(dir_test_data)
@@ -1225,7 +1224,7 @@ def test_module(dir_test_data, mod):
         "arguments",
     }
     assert all_items == expected_items
-    assert mod.getter("__name__") in entities_table
+    assert mod.getter("__name__") in app.env.get_domain("mat").entities_table
 
 
 def test_parse_twice(mod):

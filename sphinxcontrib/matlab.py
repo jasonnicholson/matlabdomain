@@ -709,9 +709,20 @@ class MATLABDomain(Domain):
         "objects": {},  # fullname -> docname, objtype
         "modules": {},  # modname -> docname, synopsis, platform, deprecated
     }
+    # Bump when the layout of ``initial_data`` (the pickled domain data) changes
+    # so Sphinx invalidates stale cached environments.
+    data_version = 1
     indices = [
         MATLABModuleIndex,
     ]
+
+    def __init__(self, env):
+        super().__init__(env)
+        # Parsed-source model for this build. Transient and NOT pickled (parsed
+        # MatObjects hold tree-sitter references); rebuilt each build by
+        # ``mat_types.analyze`` on ``builder-inited``.
+        self.entities_table = {}
+        self.entities_name_map = {}
 
     def clear_doc(self, docname):
         for fullname, (fn, _) in list(self.data["objects"].items()):  # noqa: 401
@@ -720,6 +731,17 @@ class MATLABDomain(Domain):
         for modname, (fn, _, _, _) in list(self.data["modules"].items()):
             if fn == docname:
                 del self.data["modules"][modname]
+
+    def merge_domaindata(self, docnames, otherdata):
+        # Merge the picklable xref inventory from a parallel-read worker. The
+        # transient entities model is not merged (parallel read stays disabled
+        # until the lazy index lands; see plan.md Phase 6).
+        for fullname, (fn, objtype) in otherdata["objects"].items():
+            if fn in docnames:
+                self.data["objects"][fullname] = (fn, objtype)
+        for modname, data in otherdata["modules"].items():
+            if data[0] in docnames:
+                self.data["modules"][modname] = data
 
     def find_obj(self, modname, classname, name, type, searchmode=0):
         """Find a MATLAB object for "name", perhaps using the given module \
@@ -854,6 +876,15 @@ def ensure_configuration(app, env):  # noqa: ARG001
         env.matlab_keep_package_prefix = False
 
 
+def _get_version():
+    try:
+        from importlib.metadata import version
+
+        return version("sphinxcontrib-matlabdomain")
+    except Exception:
+        return "0.0.0"
+
+
 def setup(app):
     app.connect("config-inited", ensure_configuration)
     app.connect("builder-inited", analyze)
@@ -922,4 +953,11 @@ def setup(app):
     app.add_autodoc_attrgetter(mat_types.MatModule, mat_types.MatModule.getter)
     app.add_autodoc_attrgetter(doc.MatClass, doc.MatClass.getter)
 
-    return {"parallel_read_safe": False}
+    return {
+        "version": _get_version(),
+        # Parallel builds are not yet safe: the parsed-source model is transient
+        # and built only in the main process on ``builder-inited``. Flip these on
+        # once the picklable lazy index lands (plan.md Phase 6).
+        "parallel_read_safe": False,
+        "parallel_write_safe": False,
+    }

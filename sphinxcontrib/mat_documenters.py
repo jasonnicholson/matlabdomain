@@ -51,8 +51,6 @@ from .mat_types import (
     MatModuleAnalyzer,
     MatProperty,
     MatScript,
-    entities_name_map,
-    entities_table,
     try_get_module_entity_or_default,
 )
 
@@ -139,11 +137,11 @@ class MatlabDocumenter(PyDocumenter):
             if len(self.objpath) > 1:
                 lookup_name = ".".join([self.modname, self.objpath[0]])
                 lookup_name = lookup_name.lstrip(".")
-                obj = entities_table[lookup_name]
+                obj = self.env.get_domain("mat").entities_table[lookup_name]
                 self.object = self.get_attr(obj, self.objpath[1])
             else:
                 lookup_name = self.fullname.lstrip(".")
-                self.object = try_get_module_entity_or_default(lookup_name)
+                self.object = try_get_module_entity_or_default(lookup_name, self.env)
             return True
         # this used to only catch SyntaxError, ImportError and AttributeError,
         # but importing modules with side effects can raise all kinds of errors
@@ -193,6 +191,7 @@ class MatlabDocumenter(PyDocumenter):
 
     def auto_link_see_also(self, docstrings):
         # autolink known names in See also
+        dom = self.env.get_domain("mat")
         see_also_re = re.compile(r"(See also:?\s*)(\b.*\b)(.*)", re.IGNORECASE)
         see_also_cond_re = re.compile(r"(\s*)(\b.*\b)(.*)")
         class_re = re.compile(r"(.*)\.([^\.]+)")
@@ -222,14 +221,14 @@ class MatlabDocumenter(PyDocumenter):
                         # (for matching class or function name)
                         if (
                             self.env.config.matlab_keep_package_prefix
-                            and entries[k] in entities_table
+                            and entries[k] in dom.entities_table
                         ):
-                            o = entities_table[entries[k]]
+                            o = dom.entities_table[entries[k]]
                         elif (
                             not self.env.config.matlab_keep_package_prefix
-                            and entries[k] in entities_name_map
+                            and entries[k] in dom.entities_name_map
                         ):
-                            o = entities_table[entities_name_map[entries[k]]]
+                            o = dom.entities_table[dom.entities_name_map[entries[k]]]
                         else:
                             o = None
                         if o:
@@ -263,14 +262,14 @@ class MatlabDocumenter(PyDocumenter):
                             m2 = match2[2]
                             if (
                                 self.env.config.matlab_keep_package_prefix
-                                and m1 in entities_table
+                                and m1 in dom.entities_table
                             ):
-                                cls = entities_table[entries[k]]
+                                cls = dom.entities_table[entries[k]]
                             elif (
                                 not self.env.config.matlab_keep_package_prefix
-                                and m1 in entities_name_map
+                                and m1 in dom.entities_name_map
                             ):
-                                cls = entities_table[entities_name_map[m1]]
+                                cls = dom.entities_table[dom.entities_name_map[m1]]
                             else:
                                 cls = None
                             if isinstance(cls, dict):
@@ -316,7 +315,7 @@ class MatlabDocumenter(PyDocumenter):
 
     def auto_link_all(self, docstrings):
         # auto-link known classes and functions everywhere
-        for n, o in entities_table.items():
+        for n, o in self.env.get_domain("mat").entities_table.items():
             if isinstance(o, dict):
                 if "class" in o:
                     o = o["class"]

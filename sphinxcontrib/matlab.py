@@ -12,6 +12,7 @@ import re
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from sphinx import addnodes
+from sphinx.errors import ConfigError
 from sphinx.directives import ObjectDescription
 from sphinx.domains import Domain, Index, ObjType
 from sphinx.locale import _ as translation
@@ -20,7 +21,7 @@ from sphinx.util.docfields import Field, GroupedField, TypedField
 from sphinx.util.logging import getLogger
 from sphinx.util.nodes import make_refnode
 
-from . import mat_directives, mat_types
+from . import mat_directives, mat_naming, mat_types
 from . import mat_documenters as doc
 
 logger = getLogger("matlab-domain")
@@ -169,9 +170,9 @@ class MatObject(ObjectDescription):
         modname = self.options.get("module", self.env.temp_data.get("mat:module"))
 
         if not self.env.config.matlab_keep_package_prefix:
-            modname = mat_types.strip_package_prefix(modname)
-            name_prefix = mat_types.strip_package_prefix(name_prefix)
-            name = mat_types.strip_package_prefix(name)
+            modname = mat_naming.strip_package_prefix(modname)
+            name_prefix = mat_naming.strip_package_prefix(name_prefix)
+            name = mat_naming.strip_package_prefix(name)
 
         classname = self.env.temp_data.get("mat:class")
         if classname:
@@ -220,7 +221,7 @@ class MatObject(ObjectDescription):
             # - This avoids the ".." for root entities.
             if modname and (modname not in (".", "exceptions")):
                 if not self.env.config.matlab_keep_package_prefix:
-                    modname = mat_types.strip_package_prefix(modname)
+                    modname = mat_naming.strip_package_prefix(modname)
 
                 nodetext = f"{modname}."
                 signode += addnodes.desc_addname(nodetext, nodetext)
@@ -264,16 +265,18 @@ class MatObject(ObjectDescription):
         fullname = fullname.lstrip(".")
 
         if not self.env.config.matlab_keep_package_prefix:
-            modname_out = mat_types.strip_package_prefix(modname)
+            modname_out = mat_naming.strip_package_prefix(modname)
             fullname_out = ((modname_out and f"{modname_out}.") or "") + name_cls[0]
             fullname_out = fullname_out.lstrip(".")
         else:
             modname_out, fullname_out = modname, fullname
 
+        target_id = mat_naming.make_target_id(fullname_out)
+
         # note target
-        if fullname_out not in self.state.document.ids:
+        if target_id not in self.state.document.ids:
             signode["names"].append(fullname_out)
-            signode["ids"].append(fullname_out)
+            signode["ids"].append(target_id)
             signode["first"] = not self.names
             self.state.document.note_explicit_target(signode)
             objects = self.env.domaindata["mat"]["objects"]
@@ -499,7 +502,7 @@ class MatModule(Directive):
         modname = self.arguments[0].strip()
 
         if not env.config.matlab_keep_package_prefix:
-            modname_out = mat_types.strip_package_prefix(modname)
+            modname_out = mat_naming.strip_package_prefix(modname)
         else:
             modname_out = modname
 
@@ -563,7 +566,7 @@ class MatXRefRole(XRefRole):
                     title = title[dot + 1 :]
 
             if not env.config.matlab_keep_package_prefix:
-                title = mat_types.strip_package_prefix(title)
+                title = mat_naming.strip_package_prefix(title)
 
         # if the first character is a dot, search more specific namespaces first
         # else search builtins first
@@ -610,7 +613,7 @@ class MATLABModuleIndex(Index):
 
             # Create nice mod-name
             if not self.domain.env.config.matlab_keep_package_prefix:
-                modname_out = mat_types.strip_package_prefix(modname)
+                modname_out = mat_naming.strip_package_prefix(modname)
             else:
                 modname_out = modname
 
@@ -844,13 +847,27 @@ class MATLABDomain(Domain):
                 builder, fromdocname, docname, f"module-{name}", contnode, title
             )
         else:
-            return make_refnode(builder, fromdocname, obj[0], name, contnode, name)
+            return make_refnode(
+                builder,
+                fromdocname,
+                obj[0],
+                mat_naming.make_target_id(name),
+                contnode,
+                name,
+            )
 
     def get_objects(self):
         for modname, info in self.data["modules"].items():
             yield (modname, modname, "module", info[0], f"module-{modname}", 0)
         for refname, (docname, type) in self.data["objects"].items():
-            yield (refname, refname, type, docname, refname, 1)
+            yield (
+                refname,
+                refname,
+                type,
+                docname,
+                mat_naming.make_target_id(refname),
+                1,
+            )
 
     def resolve_any_xref(self, env, fromdocname, builder, target, node, contnode):
         ret = []
@@ -874,6 +891,13 @@ def ensure_configuration(app, env):  # noqa: ARG001
             "forcing matlab_keep_package_prefix=False."
         )
         env.matlab_keep_package_prefix = False
+
+    if env.matlab_namelengthmax not in mat_naming.VALID_MATLAB_NAMELENGTHMAX:
+        allowed = sorted(mat_naming.VALID_MATLAB_NAMELENGTHMAX)
+        raise ConfigError(
+            "matlab_namelengthmax must be one of "
+            f"{allowed}; got {env.matlab_namelengthmax}."
+        )
 
 
 def _get_version():
@@ -899,6 +923,7 @@ def setup(app):
     app.add_config_value("matlab_short_links", False, "env")
     app.add_config_value("matlab_auto_link", None, "env")
     app.add_config_value("matlab_class_signature", False, "env")
+    app.add_config_value("matlab_namelengthmax", 63, "env")
 
     app.registry.add_documenter("mat:module", doc.MatModuleDocumenter)
     app.add_directive_to_domain(

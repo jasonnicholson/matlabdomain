@@ -28,6 +28,11 @@ from sphinxcontrib.mat_tree_sitter_parser import (
     MatFunctionParser,
     MatScriptParser,
 )
+from .mat_naming import (
+    classfolder_class_name as _classfolder_class_name,
+    shortest_name as _shortest_name,
+    strip_package_prefix as _strip_package_prefix,
+)
 
 logger = getLogger("matlab-domain")
 
@@ -141,40 +146,13 @@ def _domain(env=None):
 
 
 def shortest_name(dotted_path):
-    # Creates the shortest valid MATLAB name from a dotted path
-    parts = dotted_path.split(".")
-    if len(parts) == 1:
-        return parts[0].lstrip("+")
-
-    if "@" in dotted_path:
-        return dotted_path
-
-    parts_to_keep = []
-    for part in parts[:-1]:
-        if part.startswith("+"):
-            parts_to_keep.append(part.lstrip("+"))
-        elif len(parts_to_keep) > 0:
-            parts_to_keep = []
-    parts_to_keep.append(parts[-1].lstrip("+"))
-    return ".".join(parts_to_keep)
+    # Backward-compatible wrapper around centralized naming helpers.
+    return _shortest_name(dotted_path)
 
 
 def classfolder_class_name(dotted_path):
-    # Returns a @ClassFolder classname if applicable, otherwise the dotted_path is returned
-    #
-    if "@" not in dotted_path:
-        return dotted_path
-
-    parts = dotted_path.split(".")
-    if len(parts) == 1:
-        return dotted_path
-
-    stripped_parts = [part.lstrip("@") for part in parts]
-
-    if stripped_parts[-1] == stripped_parts[-2]:
-        return ".".join([*parts[0:-2], stripped_parts[-1]])
-    else:
-        return dotted_path
+    # Backward-compatible wrapper around centralized naming helpers.
+    return _classfolder_class_name(dotted_path)
 
 
 def recursive_find_all(obj):
@@ -229,7 +207,9 @@ def populate_entities_table(obj, path=""):
         fullpath = path + "." + o.name
         fullpath = fullpath.lstrip(".")
         dom.entities_table[fullpath] = o
-        dom.entities_name_map[strip_package_prefix(fullpath)] = fullpath
+        alias = strip_package_prefix(fullpath)
+        if alias not in dom.entities_name_map:
+            dom.entities_name_map[alias] = fullpath
         if isinstance(o, MatModule):
             if o.entities:
                 populate_entities_table(o, fullpath)
@@ -388,18 +368,14 @@ def analyze(app):
                 }
             else:
                 short_names[short_name] = entity
-            entities_name_map[short_name] = short_name
+            entities_name_map.setdefault(short_name, short_name)
 
     entities_table.update(short_names)
 
 
 def strip_package_prefix(varname):
     """Remove the leading '+' prefix on package names"""
-
-    if not varname:
-        return varname
-
-    return ".".join([s.lstrip("+") for s in varname.split(".")])
+    return _strip_package_prefix(varname)
 
 
 class MatObject(object):

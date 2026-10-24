@@ -7,6 +7,12 @@ Release notes
 * Drop support for Python <=3.9.
 * Drop support for Sphinx <=6.x.
 * Use treesitter for parsing.
+* Added new configuration: ``matlab_version`` (default ``"R2026a"``, oldest
+  supported ``"R2025a"``). It selects version-dependent MATLAB naming rules.
+  Scripts and functions in a subfolder of a class folder (``@C/sub/x.m``) are
+  callable before R2026a only.
+* Added new configuration: ``matlab_namelengthmax`` (``63`` or ``2048``). The
+  default ``None`` derives it from ``matlab_version`` (2048 from R2025a on).
 
 .. _PR 232: https://github.com/sphinx-contrib/matlabdomain/pull/253
 

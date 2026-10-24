@@ -20,6 +20,22 @@ from pathlib import Path
 
 VALID_MATLAB_NAMELENGTHMAX = {63, 2048}
 
+# Oldest supported MATLAB release and the default target release.
+MATLAB_VERSION_FLOOR = "R2025a"
+DEFAULT_MATLAB_VERSION = "R2026a"
+
+# Version-dependent MATLAB behavior: rule -> first release with the new behavior.
+# Every row needs MATLAB evidence (see plan.md, "matlab_version").
+MATLAB_VERSION_RULES = {
+    # namelengthmax went from 63 to 2048 (R2025a release notes).
+    "namelengthmax_2048": "R2025a",
+    # Scripts/functions in a subfolder of a class folder (@C/sub/x.m) stopped
+    # being callable (callable in R2024a and R2025b, not in R2026a).
+    "class_subfolder_not_callable": "R2026a",
+}
+
+_MATLAB_RELEASE = re.compile(r"^R(\d{4})([ab])$")
+
 # MATLAB language keywords. Top-level package names cannot use these.
 # https://www.mathworks.com/help/releases/R2026a/matlab/ref/iskeyword.html
 MATLAB_KEYWORDS = frozenset(
@@ -54,6 +70,7 @@ class MatlabName:
     pseudo_package: str
     pseudo_fullname: str
     parent_folder: str
+    is_private: bool = False
 
 
 def validate_namelengthmax(namelengthmax: int) -> int:
@@ -63,6 +80,33 @@ def validate_namelengthmax(namelengthmax: int) -> int:
             f"{VALID_MATLAB_NAMELENGTHMAX}; got {namelengthmax}."
         )
     return namelengthmax
+
+
+def _release_key(release: str) -> tuple[int, str]:
+    match = _MATLAB_RELEASE.match(release) if isinstance(release, str) else None
+    if match is None:
+        raise ValueError(
+            f"matlab_version must look like 'R2026a' or 'R2025b'; got {release!r}."
+        )
+    return int(match.group(1)), match.group(2)
+
+
+def validate_matlab_version(matlab_version: str) -> str:
+    if _release_key(matlab_version) < _release_key(MATLAB_VERSION_FLOOR):
+        raise ValueError(
+            f"matlab_version {matlab_version} is older than the oldest supported "
+            f"release {MATLAB_VERSION_FLOOR}."
+        )
+    return matlab_version
+
+
+def has_matlab_behavior(rule: str, matlab_version: str) -> bool:
+    """Return True if ``matlab_version`` includes the behavior change ``rule``."""
+    return _release_key(matlab_version) >= _release_key(MATLAB_VERSION_RULES[rule])
+
+
+def default_namelengthmax(matlab_version: str) -> int:
+    return 2048 if has_matlab_behavior("namelengthmax_2048", matlab_version) else 63
 
 
 def _identifier_pattern(namelengthmax: int) -> re.Pattern[str]:
@@ -82,7 +126,7 @@ def is_valid_identifier(
         return False
     if allow_keywords:
         return True
-    return name.lower() not in MATLAB_KEYWORDS
+    return name not in MATLAB_KEYWORDS
 
 
 def strip_package_prefix(varname: str | None) -> str | None:
@@ -99,7 +143,7 @@ def classfolder_class_name(dotted_path: str) -> str:
 
     parts = dotted_path.split(".")
     if len(parts) == 1:
-        return dotted_path  
+        return dotted_path
 
     stripped_parts = [part.lstrip("@") for part in parts]
     if stripped_parts[-1] == stripped_parts[-2]:
@@ -152,110 +196,101 @@ def _join_parts(parts: list[str]) -> str:
     return out
 
 
-def _form_package(folder_parts: list[str], namelengthmax: int) -> tuple[str, str]:
-    package_parts_reversed: list[str] = []
+def _package_chain(
+    folder_parts: list[str], namelengthmax: int
+) -> tuple[list[str], int] | None:
+    """Collect trailing '+pkg' folders. Returns (segments, index below chain)."""
+    segments: list[str] = []
     idx = len(folder_parts) - 1
     while idx >= 0 and folder_parts[idx].startswith("+"):
-        candidate = folder_parts[idx][1:]
-        if not is_valid_identifier(
-            candidate, namelengthmax, allow_keywords=True
-        ):
-            return "", ""
-        package_parts_reversed.append(candidate)
+        segments.append(folder_parts[idx][1:])
         idx -= 1
-
-    if not package_parts_reversed:
-        return "", ""
-
-    # Package levels below a classfolder are not callable.
-    if idx >= 0 and folder_parts[idx].startswith("@"):
-        return "", ""
-
-    # first package level must be isvarname-like.
-    top_package = package_parts_reversed[-1]
-    if not is_valid_identifier(top_package, namelengthmax, allow_keywords=False):
-        return "", ""
-
-    package = ".".join(reversed(package_parts_reversed))
-    parent = _join_parts(folder_parts[: len(folder_parts) - len(package_parts_reversed)])
-    return package, parent
-
-
-def _no_package_no_folderclass(
-    folder: str,
-    filename: str,
-    is_class: bool,
-    process_classes: bool,
-    namelengthmax: int,
-) -> MatlabName | None:
-    stem = Path(filename).stem
-    if not is_valid_identifier(stem, namelengthmax, allow_keywords=False):
+    segments.reverse()
+    if not segments:
         return None
+    if not is_valid_identifier(segments[0], namelengthmax, allow_keywords=False):
+        return None
+    if not all(
+        is_valid_identifier(seg, namelengthmax, allow_keywords=True)
+        for seg in segments[1:]
+    ):
+        return None
+    return segments, idx
 
-    if is_class:
-        if not process_classes:
+
+def _location(
+    folder_parts: list[str],
+    namelengthmax: int,
+    matlab_version: str = DEFAULT_MATLAB_VERSION,
+) -> tuple[str, str, str] | None:
+    """Classify a folder as (kind, qualified prefix, parent folder).
+
+    kind is "plain", "package", "class" or "class_subfolder"; the prefix is the
+    package name or the qualified class name. Returns None for folders that hold
+    no callable files (invalid packages, subfolders of class folders on
+    R2026a+, ...).
+    """
+    last = folder_parts[-1]
+    folder = _join_parts(folder_parts)
+
+    if last.startswith("@"):
+        class_name = last[1:]
+        if not is_valid_identifier(class_name, namelengthmax, allow_keywords=False):
             return None
-        return MatlabName(
-            pseudo_name=stem,
-            pseudo_package=stem,
-            pseudo_fullname=f"{stem}.{stem}",
-            parent_folder=folder,
+        chain = _package_chain(folder_parts[:-1], namelengthmax)
+        if chain is None:
+            # A class folder directly under an invalid package is not callable.
+            if len(folder_parts) >= 2 and folder_parts[-2].startswith("+"):
+                return None
+            if any(part.startswith("@") for part in folder_parts[:-1]):
+                return None
+            return "class", class_name, folder
+        segments, idx = chain
+        if any(part.startswith("@") for part in folder_parts[: idx + 1]):
+            return None
+        return (
+            "class",
+            ".".join([*segments, class_name]),
+            _join_parts(folder_parts[: idx + 1]),
         )
 
+    if last.startswith("+"):
+        chain = _package_chain(folder_parts, namelengthmax)
+        if chain is None:
+            return None
+        segments, idx = chain
+        # Packages below a class folder are not callable.
+        if any(part.startswith("@") for part in folder_parts[: idx + 1]):
+            return None
+        return "package", ".".join(segments), _join_parts(folder_parts[: idx + 1])
+
+    # Plain folder below a class folder: scripts/functions were callable before
+    # R2026a; classes never were.
+    if any(part.startswith("@") for part in folder_parts[:-1]):
+        if has_matlab_behavior("class_subfolder_not_callable", matlab_version):
+            return None
+        return "class_subfolder", "", folder
+    return "plain", "", folder
+
+
+def _private_name(
+    folder_parts: list[str], stem: str, is_class: bool, namelengthmax: int
+) -> MatlabName | None:
+    if is_class or not is_valid_identifier(stem, namelengthmax, allow_keywords=False):
+        return None
+    parent_parts = folder_parts[:-1]
+    if not parent_parts or parent_parts[-1] == "private":
+        return None
+    # Default (R2026a) rules on purpose: private folders below a class subfolder
+    # were never verified as callable in older releases.
+    if _location(parent_parts, namelengthmax) is None:
+        return None
     return MatlabName(
         pseudo_name=stem,
         pseudo_package="",
         pseudo_fullname=stem,
-        parent_folder=folder,
-    )
-
-
-def _no_package_folderclass(
-    folder: str,
-    folder_parts: list[str],
-    filename: str,
-    is_class: bool,
-    namelengthmax: int,
-) -> MatlabName | None:
-    stem = Path(filename).stem
-    if not is_valid_identifier(stem, namelengthmax, allow_keywords=False):
-        return None
-
-    class_candidate = folder_parts[-1][1:] if folder_parts and folder_parts[-1].startswith("@") else ""
-    if not is_valid_identifier(class_candidate, namelengthmax, allow_keywords=False):
-        return None
-
-    is_valid_folder_class_def = is_class and stem == class_candidate
-    is_valid_non_classdef = not is_class
-    if not (is_valid_folder_class_def or is_valid_non_classdef):
-        return None
-
-    return MatlabName(
-        pseudo_name=stem,
-        pseudo_package=class_candidate,
-        pseudo_fullname=f"{class_candidate}.{stem}",
-        parent_folder=folder,
-    )
-
-
-def _combine_package_name(
-    package: str,
-    parent_folder: str,
-    item: MatlabName | None,
-) -> MatlabName | None:
-    if not package or item is None or not item.pseudo_name:
-        return None
-
-    if item.pseudo_package:
-        pseudo_package = f"{package}.{item.pseudo_package}"
-    else:
-        pseudo_package = package
-
-    return MatlabName(
-        pseudo_name=item.pseudo_name,
-        pseudo_package=pseudo_package,
-        pseudo_fullname=f"{pseudo_package}.{item.pseudo_name}",
-        parent_folder=parent_folder,
+        parent_folder=_join_parts(folder_parts),
+        is_private=True,
     )
 
 
@@ -264,68 +299,49 @@ def form_matlab_name(
     filename: str,
     is_class: bool,
     namelengthmax: int,
+    matlab_version: str = DEFAULT_MATLAB_VERSION,
 ) -> MatlabName | None:
     """Forms the callable MATLAB name for a single file.
 
-    Returns None for non-callable/invalid entries.
+    Pure string/path function; returns None for non-callable/invalid entries.
+    ``matlab_version`` selects version-dependent rules (MATLAB_VERSION_RULES).
     """
     validate_namelengthmax(namelengthmax)
+    validate_matlab_version(matlab_version)
 
     folder_parts = _split_folder(folder)
     if not folder_parts:
         return None
 
-    possible_package = folder_parts[-1].startswith("+")
-    possible_folder_class = folder_parts[-1].startswith("@")
-    possible_subfolder_of_folder_class = any(
-        part.startswith("@") for part in folder_parts[:-1]
-    )
-    possible_package_folder_class = (
-        possible_folder_class
-        and len(folder_parts) >= 2
-        and folder_parts[-2].startswith("+")
-    )
+    stem = Path(filename).stem
+    if folder_parts[-1] == "private":
+        return _private_name(folder_parts, stem, is_class, namelengthmax)
 
-    no_package_no_folder_class = (
-        not possible_package
-        and not possible_folder_class
-        and not possible_subfolder_of_folder_class
-    )
-    if no_package_no_folder_class:
-        return _no_package_no_folderclass(
-            folder, filename, is_class, True, namelengthmax
-        )
+    location = _location(folder_parts, namelengthmax, matlab_version)
+    if location is None:
+        return None
+    kind, prefix, parent_folder = location
 
-    no_package_folder_class = (
-        possible_folder_class
-        and not possible_subfolder_of_folder_class
-        and not possible_package_folder_class
-    )
-    if no_package_folder_class:
-        return _no_package_folderclass(
-            folder, folder_parts, filename, is_class, namelengthmax
-        )
+    if kind == "class":
+        class_name = folder_parts[-1][1:]
+        if is_class:
+            if stem != class_name:
+                return None
+            return MatlabName(stem, prefix, prefix, parent_folder)
+        if not is_valid_identifier(stem, namelengthmax, allow_keywords=True):
+            return None
+        return MatlabName(stem, prefix, stem, parent_folder)
 
-    subfolder_of_folder_class = (
-        possible_subfolder_of_folder_class
-        and not is_class
-        and not possible_package
-        and not possible_folder_class
-    )
-    if subfolder_of_folder_class:
-        return _no_package_no_folderclass(
-            folder, filename, is_class, False, namelengthmax
-        )
+    if not is_valid_identifier(stem, namelengthmax, allow_keywords=False):
+        return None
 
-    if possible_package_folder_class:
-        package, parent_folder = _form_package(folder_parts[:-1], namelengthmax)
-        folder_item = _no_package_folderclass(
-            folder, folder_parts, filename, is_class, namelengthmax
-        )
-        return _combine_package_name(package, parent_folder, folder_item)
-
-    package, parent_folder = _form_package(folder_parts, namelengthmax)
-    package_item = _no_package_no_folderclass(
-        folder, filename, is_class, True, namelengthmax
-    )
-    return _combine_package_name(package, parent_folder, package_item)
+    if kind == "class_subfolder":
+        if is_class:
+            return None
+        return MatlabName(stem, "", stem, parent_folder)
+    if is_class:
+        qualified = f"{prefix}.{stem}" if prefix else stem
+        return MatlabName(stem, qualified, qualified, parent_folder)
+    if kind == "package":
+        return MatlabName(stem, prefix, f"{prefix}.{stem}", parent_folder)
+    return MatlabName(stem, "", stem, parent_folder)

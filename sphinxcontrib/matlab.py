@@ -892,6 +892,14 @@ def ensure_configuration(app, env):  # noqa: ARG001
         )
         env.matlab_keep_package_prefix = False
 
+    try:
+        mat_naming.validate_matlab_version(env.matlab_version)
+    except ValueError as err:
+        raise ConfigError(str(err)) from err
+
+    if env.matlab_namelengthmax is None:
+        env.matlab_namelengthmax = mat_naming.default_namelengthmax(env.matlab_version)
+
     if env.matlab_namelengthmax not in mat_naming.VALID_MATLAB_NAMELENGTHMAX:
         allowed = sorted(mat_naming.VALID_MATLAB_NAMELENGTHMAX)
         raise ConfigError(
@@ -923,7 +931,9 @@ def setup(app):
     app.add_config_value("matlab_short_links", False, "env")
     app.add_config_value("matlab_auto_link", None, "env")
     app.add_config_value("matlab_class_signature", False, "env")
-    app.add_config_value("matlab_namelengthmax", 63, "env")
+    app.add_config_value("matlab_version", mat_naming.DEFAULT_MATLAB_VERSION, "env")
+    # None: derived from matlab_version (2048 from R2025a on).
+    app.add_config_value("matlab_namelengthmax", None, "env")
 
     app.registry.add_documenter("mat:module", doc.MatModuleDocumenter)
     app.add_directive_to_domain(

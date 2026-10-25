@@ -36,21 +36,35 @@ CPython 3.14.6, tree-sitter 0.22.3, tree-sitter-matlab 1.0.4, Sphinx 9.1.0.
 Suite rerun (2026-10-23): 137 passed, 4 xfailed, 85% coverage, ~12.6 s.
 The plan's earlier 80% coverage figure was not reproduced; reconcile the
 coverage-tool/settings difference before using coverage as a comparison target.
-Tree: vhlab-toolbox-matlab/repo, 1726 .m files.
-  * Eager parse wall time: ~6.07 s (3.5 ms/file), 0 parse failures.
+Tree: vhlab-toolbox-matlab/repo, 1726 .m files
+(https://github.com/VH-Lab/vhlab-toolbox-matlab.git @ ac85cf5cb233).
+  * Eager parse wall time: ~6.1-6.7 s (3.5-3.9 ms/file), 0 parse failures.
   * Dominant avoidable overhead (motivates Phase 4/6):
       - tree-sitter ``Language.query`` recompiled on EVERY isFunction/isClass
         call (~2.66 s). Should be module-level compiled queries.
       - ``importlib.metadata.version("tree_sitter")`` called once PER FILE inside
         parse_mfile (~1.7 s in package-metadata parsing). Should be cached once.
 
-Regression found in the working copy (tree-sitter 0.26.0 / matlab 1.3.x)
-------------------------------------------------------------------------
-Re-running the same sweep against the working-copy code+deps gives ~16.7 s
-(2.7x SLOWER) AND crashes on +vlt/+plot/hist2d.m
-(AttributeError: 'NoneType' has no attribute 'text'). So the 0.22->0.26 upgrade
-regressed both speed and robustness on this grammar: flag for the Phase 1
-tree-sitter task and the Phase 5 bug list.
+Current branch (tree-sitter 0.26.0 / tree-sitter-matlab 1.3.0)
+--------------------------------------------------------------
+``before.prof`` (2026-10-24): project ``.venv`` rebuilt with ``uv venv --clear``
+and ``uv sync --locked --all-extras`` (free-threaded CPython 3.14.3, Sphinx
+9.1.0), command ``.venv/bin/python test_slow/profiling/profile_build.py`` from
+the repo root: ~17-19 s across captures, 1725 OK, 1 failure. Metadata, logs and
+the reproduction scripts are in ``results/`` (``capture.py`` documents usage).
+
+* Native crash (exit 139 / SIGSEGV), fixed: tree-sitter 0.26.0's ``Point.row``
+  getter returns a borrowed reference, corrupting the heap on standard (GIL)
+  CPython builds. ``get_row`` now indexes ``point[0]``.
+* +vlt/+plot/hist2d.m (AttributeError: 'NoneType' has no attribute 'text'):
+  tree-sitter-matlab >=1.2.3 parses the dotted name ``vlt.plot.hist2d`` as
+  ``property_name``, which the function query's ``name: (identifier)`` misses.
+  Grammar-driven; deferred to the Phase 5 bug list.
+* Slowdown, same workload on CPython 3.14.6 (GIL), harness wall: reference
+  6.5 s; current code + matlab 1.0.4 10.0 s (QueryCursor.captures and a
+  per-call query compile from the 0.26 port); + matlab 1.3.0 17.6 s (query
+  compilation ~2.6-3.4x slower with the new grammar). The tree-sitter core
+  upgrade alone is neutral; free-threaded .venv is within noise. Phases 4/6.
 """
 
 from __future__ import annotations

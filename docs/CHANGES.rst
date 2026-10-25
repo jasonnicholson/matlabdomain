@@ -13,6 +13,9 @@ Release notes
   callable before R2026a only.
 * Added new configuration: ``matlab_namelengthmax`` (``63`` or ``2048``). The
   default ``None`` derives it from ``matlab_version`` (2048 from R2025a on).
+* Fixed a segmentation fault (exit code 139) with tree-sitter 0.26.0 on
+  standard CPython builds. Its ``Point.row`` getter corrupts reference counts,
+  so point rows are now read by index.
 
 .. _PR 232: https://github.com/sphinx-contrib/matlabdomain/pull/253
 

@@ -251,20 +251,12 @@ re_trim_line = re.compile(r"^[ \t]*", flags=re.M)
 re_assign_remove = re.compile(r"^=[ \t]*")
 
 
-def tree_sitter_is_0_21():
-    """Check if tree-sitter is v0.21.* in order to use the correct language initialization and syntax."""
-    if not hasattr(tree_sitter_is_0_21, "is_21"):
-        tree_sitter_ver = tuple([int(sec) for sec in version("tree_sitter").split(".")])
-        tree_sitter_is_0_21.is_21 = tree_sitter_ver[1] == 21  # memoize
-    return tree_sitter_is_0_21.is_21
-
-
 def get_row(point):
-    """Get row from point. This api changed from v0.21.3 to v0.22.0"""
-    if tree_sitter_is_0_21():
-        return point[0]
-    else:
-        return point.row
+    """Get the zero-based row from a tree-sitter point (a ``(row, column)`` tuple)."""
+    # Index instead of ``point.row``: in tree-sitter 0.26.0 the ``Point.row`` getter
+    # returns a borrowed reference, corrupting the heap and causing SIGSEGV.
+    # Fixed upstream in py-tree-sitter afb3836 (unreleased as of 0.26.0).
+    return point[0]
 
 
 def process_text_into_docstring(text, encoding):

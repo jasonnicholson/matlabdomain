@@ -50,6 +50,35 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        // Future target (plan Appendix A): the module and the test root are added in
+        // Phase 7, so this config fails until then.
+        {
+            "name": "Debug sphinx-matlab-apidoc (CLI) [Phase 7, not yet implemented]",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sphinxcontrib.matlab.apidoc",
+            "args": [
+                "-o", "${workspaceFolder}/docs/api",
+                "${workspaceFolder}/tests/roots/test-apidoc-basics"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        // Future target (plan Appendix A): the builder is added in Phase 9, so this
+        // config fails until then.
+        {
+            "name": "Debug matlab-api-check [Phase 9, not yet implemented]",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "sphinx.cmd.build",
+            "args": [
+                "-b", "matlab-api-check",
+                "${workspaceFolder}/docs",
+                "${workspaceFolder}/docs/_build/api-check"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

@@ -14,13 +14,14 @@ from importlib.metadata import version
 from io import open  # for opening files with encoding in Python 2
 from zipfile import ZipFile
 
+from sphinx.environment import CONFIG_OK
 from sphinx.util.logging import getLogger
 
 def get_node(match_dict, key):
     res = match_dict.get(key)
     return res[0] if res else None
 
-from tree_sitter import Parser, Query, QueryCursor
+from tree_sitter import Node, Parser, Query, QueryCursor, Tree
 
 from sphinxcontrib.mat_tree_sitter_parser import (
     ML_LANG,
@@ -111,10 +112,11 @@ MATLAB_METHOD_ATTRIBUTE_TYPES = {
 }
 
 # The parsed-source entity model (``entities_table`` + ``entities_name_map``) is
-# owned by the live ``MATLABDomain`` instance -- it is transient (rebuilt each
-# build by ``analyze()``) and is deliberately NOT stored in ``env.domaindata``:
-# parsed ``MatObject`` values retain tree-sitter references and are not picklable.
-# Access the current build's model through ``_domain()``.
+# stored in ``env.domaindata['mat']`` and pickled with the environment. It is
+# rebuilt each build by ``analyze()``; unchanged files reuse their parsed
+# ``MatObject`` from ``parse_cache``. Tree-sitter objects are never pickled (see
+# ``MatObject.__reduce_ex__``). Access the current build's model through
+# ``_domain()``.
 #
 #   entities_table: full dotted path (relative to root) -> MatObject, plus added
 #     "short names" (e.g. ``target.+package.ClassBar`` -> ``package.ClassBar``).
@@ -222,12 +224,73 @@ def try_get_module_entity_or_default(entity_name, env=None):
     return maybe_mod
 
 
+def source_key(path):
+    """Cache key for a source file: ``(path, mtime_ns, size)``."""
+    st = os.stat(path)
+    return (path, st.st_mtime_ns, st.st_size)
+
+
+def _source_type(obj):
+    # Class-folder functions become MatMethod later; they are still functions.
+    for cls, kind in (
+        (MatClass, "class"),
+        (MatFunction, "function"),
+        (MatScript, "script"),
+        (MatApplication, "application"),
+    ):
+        if isinstance(obj, cls):
+            return kind
+    return "unknown"
+
+
+def _parse_cached(path, name, parse):
+    """Run ``parse()`` unless the previous build parsed the same key.
+
+    Records the result in the domain's ``index`` and ``parse_cache``.
+    """
+    dom = _domain()
+    if not hasattr(dom, "data"):  # detached (non-Sphinx) parsing
+        return parse()
+    key = source_key(path)
+    obj = dom.previous_parse_cache.pop(key, None)
+    if obj is None:
+        obj = parse()
+    else:
+        logger.debug("[sphinxcontrib-matlabdomain] reusing parsed %s", path)
+    if obj is not None:
+        dom.data["parse_cache"][key] = obj
+        dom.data["index"][path] = {
+            "name": name,
+            "type": _source_type(obj),
+            "mtime": key[1],
+            "size": key[2],
+        }
+    return obj
+
+
 def analyze(app):
     # Using the "MatObject.matlabify" and "MatModule.safe_getmembers" the
     # `matlab_src_dir` is recursively scanned for MATLAB objects only once.
-    # All entities found are stored in globally available `entities_table`
+    # All entities found are stored in the domain's `entities_table`.
 
     try:
+        # Shared source state lives in env.domaindata and is rebuilt here each
+        # build. Parsed results from the previous build are reused for
+        # unchanged files unless the config changed.
+        dom = app.env.get_domain("mat")
+        entities_table = dom.entities_table
+        entities_name_map = dom.entities_name_map
+        parse_cache = dom.data["parse_cache"]
+        if app.env.config_status == CONFIG_OK:
+            dom.previous_parse_cache = dict(parse_cache)
+        else:
+            dom.previous_parse_cache = {}
+        parse_cache.clear()
+        dom.data["index"].clear()
+        entities_table.clear()
+        entities_name_map.clear()
+        MatModuleAnalyzer.cache.clear()
+
         if app.env.config.matlab_src_dir is None:
             logger.debug(
                 "[sphinxcontrib-matlabdomain] matlab_src_dir is None, skipping parsing."
@@ -241,17 +304,6 @@ def analyze(app):
         MatObject.basedir = basedir  # set MatObject base directory
         MatObject.sphinx_env = app.env  # pass env to MatObject cls
         MatObject.sphinx_app = app  # pass app to MatObject cls
-
-        # The parsed-source model is owned by the live domain (transient, not
-        # pickled). Bind the domain's dicts locally so the rest of this function
-        # populates them in place; clear them (and the per-build analyzer cache)
-        # so nothing leaks across rebuilds.
-        dom = app.env.get_domain("mat")
-        entities_table = dom.entities_table
-        entities_name_map = dom.entities_name_map
-        entities_table.clear()
-        entities_name_map.clear()
-        MatModuleAnalyzer.cache.clear()
 
         # Set the root object and get root members.
         logger.debug("[sphinxcontrib-matlabdomain] Starting matlabify")
@@ -280,6 +332,7 @@ def analyze(app):
         populate_entities_table(root)
         logger.debug("[sphinxcontrib-matlabdomain] Finished populate_entities_table")
         entities_table["."] = root
+        dom.previous_parse_cache = {}
     except Exception as e:
         import traceback
 
@@ -324,6 +377,12 @@ def analyze(app):
             continue
         assert len(class_entities) == 1
         cls = class_entities[0][1]
+        # Drop folder methods attached to a class reused from the parse cache.
+        cls.methods = {
+            n: m
+            for n, m in cls.methods.items()
+            if not getattr(m, "from_class_folder", False)
+        }
 
         # Add functions to class
         for func_name, func in func_entities:
@@ -331,6 +390,7 @@ def analyze(app):
             func.cls = cls
             # TODO: Find the method attributes defined in classfolder class definition.
             func.attrs = {}
+            func.from_class_folder = True
             cls.methods[func.name] = func
 
     # Transform @ClassFolder names. Specifically
@@ -378,6 +438,14 @@ def strip_package_prefix(varname):
     return _strip_package_prefix(varname)
 
 
+_TREE_SITTER_TYPES = (Node, Tree, Parser)
+
+
+def _restore_matobject(class_name):
+    cls = globals()[class_name]
+    return cls.__new__(cls)
+
+
 class MatObject(object):
     """
     Base MATLAB object to which all others are subclassed.
@@ -407,6 +475,15 @@ class MatObject(object):
     def ref_role(self):
         """Returns role to use for references to this object (e.g. when generating auto-links)"""
         return "ref"
+
+    def __reduce_ex__(self, protocol):
+        # The ``__module__`` property breaks pickle's default class lookup, so
+        # restore by class name. Live tree-sitter objects are dropped.
+        state = {
+            k: None if isinstance(v, _TREE_SITTER_TYPES) else v
+            for k, v in self.__dict__.items()
+        }
+        return (_restore_matobject, (type(self).__name__,), state)
 
     @property
     def __name__(self):
@@ -495,15 +572,21 @@ class MatObject(object):
             logger.debug(
                 f"[sphinxcontrib-matlabdomain] matlabify parse_mfile {package=}, {mfile=}"
             )
-            return MatObject.parse_mfile(
-                mfile, name, path, MatObject.encoding
-            )  # parse mfile
+            return _parse_cached(
+                mfile,
+                package,
+                lambda: MatObject.parse_mfile(mfile, name, path, MatObject.encoding),
+            )
         elif os.path.isfile(fullpath + ".mlapp"):
             mlappfile = fullpath + ".mlapp"
             logger.debug(
                 f"[sphinxcontrib-matlabdomain] matlabify parse_mlappfile {package=}, {mlappfile=}"
             )
-            return MatObject.parse_mlappfile(mlappfile, name, path)
+            return _parse_cached(
+                mlappfile,
+                package,
+                lambda: MatObject.parse_mlappfile(mlappfile, name, path),
+            )
         return None
 
     @staticmethod

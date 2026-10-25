@@ -279,16 +279,9 @@ class MatObject(ObjectDescription):
             signode["ids"].append(target_id)
             signode["first"] = not self.names
             self.state.document.note_explicit_target(signode)
-            objects = self.env.domaindata["mat"]["objects"]
-            if fullname_out in objects:
-                self.state_machine.reporter.warning(
-                    f"duplicate object description of {fullname_out}, "
-                    + "other instance in "
-                    + str(self.env.doc2path(objects[fullname_out][0]))
-                    + ", use :noindex: for one of them",
-                    line=self.lineno,
-                )
-            objects[fullname_out] = (self.env.docname, self.objtype)
+            self.env.get_domain("mat").note_object(
+                fullname_out, self.objtype, location=(self.env.docname, self.lineno)
+            )
 
         if indextext := self.get_index_text(modname_out, name_cls):
             entry = ("single", indextext, fullname_out, "", None)
@@ -518,7 +511,7 @@ class MatModule(Directive):
             )
             # make a duplicate entry in 'objects' to facilitate searching for
             # the module in MATLABDomain.find_obj()
-            env.domaindata["mat"]["objects"][modname] = (env.docname, "module")
+            env.get_domain("mat").note_object(modname, "module")
             targetnode = nodes.target("", "", ids=[f"module-{modname}"], ismod=True)
             self.state.document.note_explicit_target(targetnode)
             # the platform and synopsis aren't printed; in fact, they are only
@@ -709,23 +702,50 @@ class MATLABDomain(Domain):
         "app": MatXRefRole(),
     }
     initial_data = {
+        # Per-document registrations (cleared/merged by docname).
         "objects": {},  # fullname -> docname, objtype
         "modules": {},  # modname -> docname, synopsis, platform, deprecated
+        # Shared source state, rebuilt by ``mat_types.analyze`` each build.
+        "index": {},  # source path -> {name, type, mtime, size}
+        "parse_cache": {},  # (path, mtime_ns, size) -> parsed MatObject
+        "entities_table": {},  # dotted name -> MatObject
+        "entities_name_map": {},  # name without '+' prefixes -> dotted name
     }
     # Bump when the layout of ``initial_data`` (the pickled domain data) changes
     # so Sphinx invalidates stale cached environments.
-    data_version = 1
+    data_version = 2
     indices = [
         MATLABModuleIndex,
     ]
 
     def __init__(self, env):
         super().__init__(env)
-        # Parsed-source model for this build. Transient and NOT pickled (parsed
-        # MatObjects hold tree-sitter references); rebuilt each build by
-        # ``mat_types.analyze`` on ``builder-inited``.
-        self.entities_table = {}
-        self.entities_name_map = {}
+        # Previous build's parse cache, consumed by ``mat_types.analyze``.
+        self.previous_parse_cache = {}
+
+    @property
+    def entities_table(self):
+        return self.data["entities_table"]
+
+    @property
+    def entities_name_map(self):
+        return self.data["entities_name_map"]
+
+    def note_object(self, name, objtype, location=None):
+        """Register a documented object for cross-referencing.
+
+        Warns on duplicates only when ``location`` is given.
+        """
+        objects = self.data["objects"]
+        if name in objects and location is not None:
+            logger.warning(
+                "duplicate object description of %s, other instance in %s, "
+                "use :noindex: for one of them",
+                name,
+                self.env.doc2path(objects[name][0]),
+                location=location,
+            )
+        objects[name] = (self.env.docname, objtype)
 
     def clear_doc(self, docname):
         for fullname, (fn, _) in list(self.data["objects"].items()):  # noqa: 401
@@ -736,9 +756,9 @@ class MATLABDomain(Domain):
                 del self.data["modules"][modname]
 
     def merge_domaindata(self, docnames, otherdata):
-        # Merge the picklable xref inventory from a parallel-read worker. The
-        # transient entities model is not merged (parallel read stays disabled
-        # until the lazy index lands; see plan.md Phase 6).
+        # Merge per-document registrations from a parallel-read worker. Shared
+        # source state (index, parse cache, entities) is built in the main
+        # process and is not merged (parallel read stays disabled; Phase 6).
         for fullname, (fn, objtype) in otherdata["objects"].items():
             if fn in docnames:
                 self.data["objects"][fullname] = (fn, objtype)

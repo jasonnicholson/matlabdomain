@@ -91,6 +91,26 @@ Using auto-directives
    DEVELOPMENT.rst
 
 
+MATLAB names and link anchors
+-----------------------------
+
+Source files get their MATLAB name the way MATLAB forms it: ``+pkg`` folders
+are namespaces, ``@Cls`` folders define class ``Cls``, and files in plain
+folders are global names. ``matlab_version`` (default ``"R2026a"``, oldest
+``"R2025a"``) selects release-dependent rules, and ``matlab_namelengthmax``
+(``63`` or ``2048``; default derived from ``matlab_version``) the identifier
+length limit. When several files have the same MATLAB name, the first one on
+the path wins (the source root first, then folders before subfolders, in name
+order). Cross-references by MATLAB name (for example ``pkg.fun`` or
+``pkg.Cls.method``) resolve to the object, however it was documented.
+
+The HTML anchor of a documented object is its documented full name with
+surrounding whitespace and leading dots removed and each whitespace run
+replaced by ``-``; all other characters are kept. A module's anchor is
+``module-`` followed by the same transformation of its name. This scheme is a
+stable contract: anchors, deep links and intersphinx inventories only change if
+the documented name changes.
+
 Directives
 ----------
 

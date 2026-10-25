@@ -210,12 +210,7 @@ class MatObject(ObjectDescription):
             modname = self.options.get("module", self.env.temp_data.get("mat:module"))
 
             if self.env.config.matlab_short_links:
-                # modname is only used for package names
-                # - "target.+package" => "package"
-                # - "target" => ""
-                parts = modname.split(".")
-                parts = [part for part in parts if part.startswith("+")]
-                modname = ".".join(parts)
+                modname = mat_naming.short_link_modname(modname)
 
             # Consider adding the module name, except for "." and "exceptions"
             # - This avoids the ".." for root entities.
@@ -250,16 +245,15 @@ class MatObject(ObjectDescription):
         """Return the text for the index entry of the object."""
         raise NotImplementedError("must be implemented in subclasses")
 
+    @staticmethod
+    def _is_same_object(node, fullname):
+        return isinstance(node, addnodes.desc_signature) and fullname in node["names"]
+
     def add_target_and_index(self, name_cls, sig, signode):  # noqa: ARG002 - required by Sphinx API
         modname = self.options.get("module", self.env.temp_data.get("mat:module"))
 
         if self.env.config.matlab_short_links and name_cls[0] != modname:
-            # modname is only used for package names
-            # - "target.+package" => "package"
-            # - "target" => ""
-            parts = modname.split(".")
-            parts = [part for part in parts if part.startswith("+")]
-            modname = ".".join(parts)
+            modname = mat_naming.short_link_modname(modname)
 
         fullname = ((modname and f"{modname}.") or "") + name_cls[0]
         fullname = fullname.lstrip(".")
@@ -282,9 +276,19 @@ class MatObject(ObjectDescription):
             self.env.get_domain("mat").note_object(
                 fullname_out, self.objtype, location=(self.env.docname, self.lineno)
             )
+        elif not self._is_same_object(self.state.document.ids[target_id], fullname_out):
+            logger.warning(
+                "[sphinxcontrib-matlabdomain] %s and %s share the target id %r; "
+                "%s is not linkable",
+                fullname_out,
+                ", ".join(self.state.document.ids[target_id]["names"]) or "?",
+                target_id,
+                fullname_out,
+                location=(self.env.docname, self.lineno),
+            )
 
         if indextext := self.get_index_text(modname_out, name_cls):
-            entry = ("single", indextext, fullname_out, "", None)
+            entry = ("single", indextext, target_id, "", None)
             self.indexnode["entries"].append(entry)
 
     def before_content(self):
@@ -512,13 +516,14 @@ class MatModule(Directive):
             # make a duplicate entry in 'objects' to facilitate searching for
             # the module in MATLABDomain.find_obj()
             env.get_domain("mat").note_object(modname, "module")
-            targetnode = nodes.target("", "", ids=[f"module-{modname}"], ismod=True)
+            target_id = mat_naming.make_module_target_id(modname)
+            targetnode = nodes.target("", "", ids=[target_id], ismod=True)
             self.state.document.note_explicit_target(targetnode)
             # the platform and synopsis aren't printed; in fact, they are only
             # used in the modindex currently
             ret.append(targetnode)
             indextext = translation("%s (module)") % modname_out
-            entry = "single", indextext, f"module-{modname}", "", None
+            entry = "single", indextext, target_id, "", None
             inode = addnodes.index(entries=[entry])
             ret.append(inode)
         return ret
@@ -633,7 +638,7 @@ class MATLABModuleIndex(Index):
                     stripped + modname_out,
                     subtype,
                     docname,
-                    f"module-{stripped}{modname}",
+                    mat_naming.make_module_target_id(stripped + modname),
                     platforms,
                     qualifier,
                     synopsis,
@@ -706,14 +711,17 @@ class MATLABDomain(Domain):
         "objects": {},  # fullname -> docname, objtype
         "modules": {},  # modname -> docname, synopsis, platform, deprecated
         # Shared source state, rebuilt by ``mat_types.analyze`` each build.
-        "index": {},  # source path -> {name, type, mtime, size}
+        # source path -> {name, type, mtime, size, canonical_name, private}
+        "index": {},
         "parse_cache": {},  # (path, mtime_ns, size) -> parsed MatObject
         "entities_table": {},  # dotted name -> MatObject
         "entities_name_map": {},  # name without '+' prefixes -> dotted name
+        # MATLAB name -> entities_table key of the found-first file
+        "canonical_names": {},
     }
     # Bump when the layout of ``initial_data`` (the pickled domain data) changes
     # so Sphinx invalidates stale cached environments.
-    data_version = 2
+    data_version = 3
     indices = [
         MATLABModuleIndex,
     ]
@@ -730,6 +738,34 @@ class MATLABDomain(Domain):
     @property
     def entities_name_map(self):
         return self.data["entities_name_map"]
+
+    def find_entity(self, name):
+        """Return the parsed entity for ``name`` or ``None``.
+
+        ``name`` is an ``entities_table`` key or a MATLAB name (``pkg.Cls``)
+        resolved found-first.
+        """
+        entity = self.entities_table.get(name)
+        if entity is None:
+            key, rest = mat_naming.split_canonical(name, self.data["canonical_names"])
+            if key is not None and not rest:
+                entity = self.entities_table.get(key)
+        return entity
+
+    def _find_canonical(self, name, objtypes):
+        # Resolve a MATLAB name (``pkg.Cls.method``) to the name the object was
+        # registered under (which depends on how it was documented).
+        key, rest = mat_naming.split_canonical(name, self.data["canonical_names"])
+        if key is None:
+            return []
+        objects = self.data["objects"]
+        for candidate in mat_naming.registered_name_candidates(key):
+            fullname = ".".join([candidate, *rest])
+            if fullname in objects and (
+                objtypes is None or objects[fullname][1] in objtypes
+            ):
+                return [(fullname, objects[fullname])]
+        return []
 
     def note_object(self, name, objtype, location=None):
         """Register a documented object for cross-referencing.
@@ -828,6 +864,9 @@ class MATLABDomain(Domain):
             newname = f"object.{name}"
         if newname is not None:
             matches.append((newname, objects[newname]))
+        if not matches and type != "mod":
+            objtypes = self.objtypes_for_role(type) if searchmode == 1 else None
+            matches = self._find_canonical(name, objtypes)
         return matches
 
     def resolve_xref(self, env, fromdocname, builder, type, target, node, contnode):  # noqa: ARG002 - required by Sphinx API
@@ -864,7 +903,12 @@ class MATLABDomain(Domain):
             if platform:
                 title += f" ({platform})"
             return make_refnode(
-                builder, fromdocname, docname, f"module-{name}", contnode, title
+                builder,
+                fromdocname,
+                docname,
+                mat_naming.make_module_target_id(name),
+                contnode,
+                title,
             )
         else:
             return make_refnode(
@@ -878,7 +922,14 @@ class MATLABDomain(Domain):
 
     def get_objects(self):
         for modname, info in self.data["modules"].items():
-            yield (modname, modname, "module", info[0], f"module-{modname}", 0)
+            yield (
+                modname,
+                modname,
+                "module",
+                info[0],
+                mat_naming.make_module_target_id(modname),
+                0,
+            )
         for refname, (docname, type) in self.data["objects"].items():
             yield (
                 refname,
@@ -912,20 +963,13 @@ def ensure_configuration(app, env):  # noqa: ARG001
         )
         env.matlab_keep_package_prefix = False
 
+    # Explicit matlab_namelengthmax wins; None derives it from matlab_version.
     try:
-        mat_naming.validate_matlab_version(env.matlab_version)
+        env.matlab_namelengthmax = mat_naming.resolve_namelengthmax(
+            env.matlab_version, env.matlab_namelengthmax
+        )
     except ValueError as err:
         raise ConfigError(str(err)) from err
-
-    if env.matlab_namelengthmax is None:
-        env.matlab_namelengthmax = mat_naming.default_namelengthmax(env.matlab_version)
-
-    if env.matlab_namelengthmax not in mat_naming.VALID_MATLAB_NAMELENGTHMAX:
-        allowed = sorted(mat_naming.VALID_MATLAB_NAMELENGTHMAX)
-        raise ConfigError(
-            "matlab_namelengthmax must be one of "
-            f"{allowed}; got {env.matlab_namelengthmax}."
-        )
 
 
 def _get_version():

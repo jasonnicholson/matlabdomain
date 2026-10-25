@@ -13,6 +13,12 @@ Release notes
   callable before R2026a only.
 * Added new configuration: ``matlab_namelengthmax`` (``63`` or ``2048``). The
   default ``None`` derives it from ``matlab_version`` (2048 from R2025a on).
+  An explicit value always wins over the derived default.
+* Source files are named the MATLAB way (``form_matlab_name``); duplicate
+  names resolve found-first like the MATLAB path, and shadowed files are
+  logged. Cross-references by MATLAB name (e.g. ``pkg.Cls.method``) now
+  resolve however the object was documented. Existing anchors are unchanged;
+  the anchor scheme is documented as a stable contract.
 * Fixed a segmentation fault (exit code 139) with tree-sitter 0.26.0 on
   standard CPython builds. Its ``Point.row`` getter corrupts reference counts,
   so point rows are now read by index.

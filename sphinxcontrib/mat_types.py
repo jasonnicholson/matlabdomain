@@ -17,6 +17,8 @@ from zipfile import ZipFile
 from sphinx.environment import CONFIG_OK
 from sphinx.util.logging import getLogger
 
+from . import mat_naming
+
 def get_node(match_dict, key):
     res = match_dict.get(key)
     return res[0] if res else None
@@ -287,6 +289,7 @@ def analyze(app):
             dom.previous_parse_cache = {}
         parse_cache.clear()
         dom.data["index"].clear()
+        dom.data["canonical_names"].clear()
         entities_table.clear()
         entities_name_map.clear()
         MatModuleAnalyzer.cache.clear()
@@ -431,6 +434,80 @@ def analyze(app):
             entities_name_map.setdefault(short_name, short_name)
 
     entities_table.update(short_names)
+
+    index_canonical_names(dom, app.env.config, [basedir])
+
+
+def _root_index(path, roots):
+    for i, root in enumerate(roots):
+        if os.path.commonpath([root, path]) == root:
+            return i
+    return len(roots)
+
+
+def index_canonical_names(dom, config, roots):
+    """Name every indexed source file the MATLAB way (``form_matlab_name``).
+
+    Sets ``canonical_name`` (``None`` if MATLAB cannot call the file) and
+    ``private`` on each ``index`` record. Public names, except class-folder
+    methods, go to ``canonical_names`` (name -> entity key), resolved
+    found-first over ``roots`` like the MATLAB path; shadowed files are logged.
+    A short-name alias in ``entities_table`` that equals a canonical name is
+    pointed at the found-first winner, so it no longer depends on listing order.
+    """
+    version = config.matlab_version
+    namelengthmax = mat_naming.resolve_namelengthmax(
+        version, config.matlab_namelengthmax
+    )
+    roots = [os.path.normpath(root) for root in roots]
+    entries = []
+    for path, record in dom.data["index"].items():
+        folder, filename = os.path.split(path)
+        name = mat_naming.form_matlab_name(
+            folder, filename, record["type"] == "class", namelengthmax, version
+        )
+        record["canonical_name"] = mat_naming.canonical_name(name) if name else None
+        record["private"] = bool(name and name.is_private)
+        if name is None:
+            logger.verbose(
+                "[sphinxcontrib-matlabdomain] %s is not callable in MATLAB %s; "
+                "it has no MATLAB name.",
+                path,
+                version,
+            )
+            continue
+        if name.is_private or record["canonical_name"] != name.pseudo_fullname:
+            continue
+        root_index = _root_index(path, roots)
+        root = roots[root_index] if root_index < len(roots) else folder
+        order = mat_naming.path_order_key(root_index, root, name.parent_folder)
+        entries.append((order, path, record["canonical_name"], record["name"]))
+
+    entries.sort()
+    winners, shadowed = mat_naming.resolve_found_first(
+        (canonical, (path, key)) for _, path, canonical, key in entries
+    )
+    for canonical, (path, _), (winner_path, _) in shadowed:
+        logger.info(
+            "[sphinxcontrib-matlabdomain] %s in %s is shadowed by %s.",
+            canonical,
+            path,
+            winner_path,
+        )
+
+    canonical_names = dom.data["canonical_names"]
+    entities_table = dom.entities_table
+    for canonical, (_, key) in winners.items():
+        canonical_names[canonical] = key
+        winner = entities_table.get(key)
+        alias = entities_table.get(canonical)
+        if (
+            isinstance(alias, MatObject)
+            and isinstance(winner, MatObject)
+            and alias is not winner
+            and type(alias) is type(winner)
+        ):
+            entities_table[canonical] = winner
 
 
 def strip_package_prefix(varname):

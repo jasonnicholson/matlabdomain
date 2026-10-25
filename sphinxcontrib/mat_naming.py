@@ -7,7 +7,19 @@ This module is the single contract point for:
 - MATLAB identifier validation (including namelengthmax variants)
 - package/class-folder/name normalization
 - stable target-id generation for cross-reference anchors
-- file-to-name mapping for callable MATLAB files
+- file-to-name mapping for callable MATLAB files (``form_matlab_name``)
+- found-first resolution of duplicate canonical names
+
+Target-ID contract (stable; changing it breaks deep links and intersphinx):
+
+- An object's HTML anchor is ``make_target_id(name)`` where ``name`` is the
+  name the object is registered under (``mat:`` directive full name).
+- A module's anchor is ``make_module_target_id(modname)``
+  (``"module-" + make_target_id(modname)``).
+- ``make_target_id`` strips surrounding whitespace and leading dots and
+  replaces each whitespace run with ``-``. Everything else (``.``, ``+``,
+  ``@``, ``_``, digits, letters, non-ASCII) is kept verbatim and case is
+  preserved, so every valid MATLAB name is its own anchor.
 """
 
 from __future__ import annotations
@@ -74,7 +86,11 @@ class MatlabName:
 
 
 def validate_namelengthmax(namelengthmax: int) -> int:
-    if namelengthmax not in VALID_MATLAB_NAMELENGTHMAX:
+    if (
+        not isinstance(namelengthmax, int)
+        or isinstance(namelengthmax, bool)
+        or namelengthmax not in VALID_MATLAB_NAMELENGTHMAX
+    ):
         raise ValueError(
             "matlab_namelengthmax must be one of "
             f"{VALID_MATLAB_NAMELENGTHMAX}; got {namelengthmax}."
@@ -107,6 +123,14 @@ def has_matlab_behavior(rule: str, matlab_version: str) -> bool:
 
 def default_namelengthmax(matlab_version: str) -> int:
     return 2048 if has_matlab_behavior("namelengthmax_2048", matlab_version) else 63
+
+
+def resolve_namelengthmax(matlab_version: str, namelengthmax: int | None) -> int:
+    """Explicit ``namelengthmax`` wins; ``None`` derives it from the version."""
+    validate_matlab_version(matlab_version)
+    if namelengthmax is None:
+        return default_namelengthmax(matlab_version)
+    return validate_namelengthmax(namelengthmax)
 
 
 def _identifier_pattern(namelengthmax: int) -> re.Pattern[str]:
@@ -172,15 +196,95 @@ def shortest_name(dotted_path: str) -> str:
 
 
 def make_target_id(canonical_name: str) -> str:
-    """Stable target-id contract for rendered anchors.
-
-    This currently preserves legacy behavior (dotted canonical names) while
-    normalizing leading dots and whitespace. Keeping this helper as the single
-    call site allows future explicit migrations without touching directive/xref
-    code paths.
-    """
+    """Anchor for a registered object name (see the module docstring)."""
     target = (canonical_name or "").strip().lstrip(".")
     return re.sub(r"\s+", "-", target)
+
+
+def make_module_target_id(modname: str) -> str:
+    """Anchor for a ``mat:module`` (see the module docstring)."""
+    return f"module-{make_target_id(modname)}"
+
+
+def short_link_modname(modname: str | None) -> str:
+    """Keep only the ``+package`` parts of a module name (matlab_short_links).
+
+    ``"target.+package"`` -> ``"+package"``; ``"target"`` -> ``""``.
+    """
+    return ".".join(part for part in (modname or "").split(".") if part.startswith("+"))
+
+
+def registered_name_candidates(legacy_key: str) -> list[str]:
+    """Names an entity with discovery key ``legacy_key`` may be registered as.
+
+    Covers ``matlab_keep_package_prefix`` on/off, class-folder collapsing and
+    ``matlab_short_links``. Ordered, without duplicates.
+    """
+    collapsed = classfolder_class_name(legacy_key)
+    names = [
+        legacy_key,
+        collapsed,
+        strip_package_prefix(legacy_key),
+        strip_package_prefix(collapsed),
+        shortest_name(legacy_key),
+        shortest_name(collapsed),
+    ]
+    return list(dict.fromkeys(names))
+
+
+def canonical_name(name: MatlabName) -> str:
+    """Documentation name of a file.
+
+    ``pseudo_fullname``, except that class-folder methods are qualified by
+    their class (``pkg.C.helper``, not the callable ``helper``).
+    """
+    package, fullname = name.pseudo_package, name.pseudo_fullname
+    if not package or fullname == package or fullname.startswith(f"{package}."):
+        return fullname
+    return f"{package}.{name.pseudo_name}"
+
+
+def resolve_found_first(entries):
+    """Resolve duplicate names like the MATLAB path: the first entry wins.
+
+    ``entries`` is an iterable of ``(name, value)`` in precedence order (the
+    caller sorts by source-root order, then path order). Returns
+    ``(winners, shadowed)``: ``winners`` maps name -> first value, and
+    ``shadowed`` lists ``(name, shadowed_value, winning_value)``.
+    """
+    winners = {}
+    shadowed = []
+    for name, value in entries:
+        if name in winners:
+            shadowed.append((name, value, winners[name]))
+        else:
+            winners[name] = value
+    return winners, shadowed
+
+
+def split_canonical(name: str, canonical_names: dict):
+    """Split ``name`` into its longest known canonical prefix and the rest.
+
+    Returns ``(canonical_names[prefix], remaining_parts)`` or ``(None, [])``;
+    e.g. ``pkg.Cls.method`` -> ``(canonical_names["pkg.Cls"], ["method"])``.
+    """
+    parts = name.split(".")
+    for i in range(len(parts), 0, -1):
+        value = canonical_names.get(".".join(parts[:i]))
+        if value is not None:
+            return value, parts[i:]
+    return None, []
+
+
+def path_order_key(root_index: int, root: str, folder: str) -> tuple:
+    """Sort key for MATLAB-path precedence of ``folder`` below ``root``.
+
+    Earlier roots win; within a root, folders are ordered like ``genpath``
+    (a folder before its subfolders, siblings by name).
+    """
+    rel = os.path.relpath(os.path.normpath(folder), os.path.normpath(root))
+    parts = () if rel == os.curdir else Path(rel).parts
+    return (root_index, parts)
 
 
 def _split_folder(folder: str) -> list[str]:

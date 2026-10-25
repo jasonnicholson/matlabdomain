@@ -134,14 +134,19 @@ class MatlabDocumenter(PyDocumenter):
                 f"{self.objpath=}, {self.fullname=}."
             )
             logger.debug(msg)
+            dom = self.env.get_domain("mat")
             if len(self.objpath) > 1:
                 lookup_name = ".".join([self.modname, self.objpath[0]])
                 lookup_name = lookup_name.lstrip(".")
-                obj = self.env.get_domain("mat").entities_table[lookup_name]
+                obj = dom.find_entity(lookup_name)
+                if obj is None:
+                    raise KeyError(lookup_name)
                 self.object = self.get_attr(obj, self.objpath[1])
             else:
                 lookup_name = self.fullname.lstrip(".")
                 self.object = try_get_module_entity_or_default(lookup_name, self.env)
+                if self.object is None:
+                    self.object = dom.find_entity(lookup_name)
             return True
         # this used to only catch SyntaxError, ImportError and AttributeError,
         # but importing modules with side effects can raise all kinds of errors
@@ -866,6 +871,9 @@ class MatModuleLevelDocumenter(MatlabDocumenter):
                 # ... or in the scope of a module directive
                 if not modname:
                     modname = self.env.temp_data.get("mat:module")
+                # ... or it is a MATLAB name in the global namespace
+                if not modname and self.env.get_domain("mat").find_entity(base):
+                    modname = "."
                 # ... else, it stays None, which means invalid
         return modname, [*parents, base]
 

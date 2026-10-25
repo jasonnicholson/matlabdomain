@@ -68,7 +68,7 @@ def doctree_text(app, docname):
 
 
 def test_initial_data_layout():
-    assert MATLABDomain.data_version == 2
+    assert MATLABDomain.data_version == 3
     assert set(MATLABDomain.initial_data) == {
         "objects",
         "modules",
@@ -76,6 +76,7 @@ def test_initial_data_layout():
         "parse_cache",
         "entities_table",
         "entities_name_map",
+        "canonical_names",
     }
 
 
@@ -99,6 +100,8 @@ def test_source_state_is_env_owned(make_app, srcdir):
         "type": "class",
         "mtime": os.stat(srcdir / "src" / "@Second" / "Second.m").st_mtime_ns,
         "size": os.stat(srcdir / "src" / "@Second" / "Second.m").st_size,
+        "canonical_name": "Second",
+        "private": False,
     }
     method_file = str(srcdir / "src" / "@Second" / "method_in_folder.m")
     assert data["index"][method_file]["type"] == "function"

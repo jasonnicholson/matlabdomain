@@ -33,7 +33,9 @@ Baseline captured (Phase 1 — TRUE baseline)
 -------------------------------------------
 Env: git worktree at commit 0ce8fa0 (../scm-baseline), uv, standard (GIL)
 CPython 3.14.6, tree-sitter 0.22.3, tree-sitter-matlab 1.0.4, Sphinx 9.1.0.
-Suite: 137 passed, 4 xfailed, 80% coverage, ~12.6 s.
+Suite rerun (2026-10-23): 137 passed, 4 xfailed, 85% coverage, ~12.6 s.
+The plan's earlier 80% coverage figure was not reproduced; reconcile the
+coverage-tool/settings difference before using coverage as a comparison target.
 Tree: vhlab-toolbox-matlab/repo, 1726 .m files.
   * Eager parse wall time: ~6.07 s (3.5 ms/file), 0 parse failures.
   * Dominant avoidable overhead (motivates Phase 4/6):

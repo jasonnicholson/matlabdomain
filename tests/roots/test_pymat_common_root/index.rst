@@ -1,6 +1,6 @@
 .. automodule:: base.PythonClass
    :members:
 
-.. mat:automodule:: base
-.. mat:autoclass:: base.MatlabClass
+.. mat:autofolder:: base
+.. mat:autoclass:: base/MatlabClass.m
    :members:

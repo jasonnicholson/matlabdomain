@@ -6,5 +6,5 @@ classdef Group < replab.Monoid
 %
 %    .. method:: eqv
 %
-%       Documentation in :meth:`+replab.Domain.eqv`
+%       Documentation in :meth:`replab.Domain.eqv`
 end

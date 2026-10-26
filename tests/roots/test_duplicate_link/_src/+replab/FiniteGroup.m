@@ -6,6 +6,6 @@ classdef FiniteGroup < replab.CompactGroup
 %
 %    .. method:: eqv
 %
-%       Documentation in :meth:`+replab.Domain.eqv`
+%       Documentation in :meth:`replab.Domain.eqv`
 
 end

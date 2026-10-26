@@ -5,32 +5,44 @@ MATLAB naming helpers.
 
 This module is the single contract point for:
 - MATLAB identifier validation (including namelengthmax variants)
-- package/class-folder/name normalization
+- path references, the identity of every documented object
 - stable target-id generation for cross-reference anchors
 - file-to-name mapping for callable MATLAB files (``form_matlab_name``)
-- found-first resolution of duplicate canonical names
 
-Target-ID contract (stable; changing it breaks deep links and intersphinx):
+Reference and anchor contract (stable; changing it breaks deep links and
+intersphinx):
 
-- An object's HTML anchor is ``make_target_id(name)`` where ``name`` is the
-  name the object is registered under (``mat:`` directive full name).
-- A module's anchor is ``make_module_target_id(modname)``
-  (``"module-" + make_target_id(modname)``).
-- ``make_target_id`` strips surrounding whitespace and leading dots and
-  replaces each whitespace run with ``-``. Everything else (``.``, ``+``,
-  ``@``, ``_``, digits, letters, non-ASCII) is kept verbatim and case is
-  preserved, so every valid MATLAB name is its own anchor.
+- A path reference is the path relative to the project root, with ``/``
+  separators, Unicode NFC and the file extension kept
+  (``target/+package/ClassBar.m``). Folders end with ``/``; the root folder
+  is ``./``. Members follow the file with ``.``
+  (``target/+package/ClassBar.m.myMethod``).
+- An object's HTML anchor is ``make_target_id(reference)``: ``mat-``
+  followed by the reference, where every ASCII character other than letters,
+  digits and ``- . _ ! $ & ' ( ) * + , ; = : @ /`` becomes ``~XX`` per UTF-8
+  byte (uppercase hex). Non-ASCII characters are kept. ``~`` is escaped too,
+  so distinct references never share an anchor.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import string
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
 
 VALID_MATLAB_NAMELENGTHMAX = {63, 2048}
+
+# File types with a handler; the Phase 4 registry replaces this tuple.
+REGISTERED_EXTENSIONS = (".m", ".mlapp")
+
+# Path reference of the project root folder.
+ROOT_REFERENCE = "./"
+
+_ANCHOR_SAFE = frozenset(string.ascii_letters + string.digits + "-._!$&'()*+,;=:@/")
 
 # Oldest supported MATLAB release and the default target release.
 MATLAB_VERSION_FLOOR = "R2025a"
@@ -153,83 +165,116 @@ def is_valid_identifier(
     return name not in MATLAB_KEYWORDS
 
 
-def strip_package_prefix(varname: str | None) -> str | None:
-    """Remove leading '+' prefix from package segments in dotted names."""
-    if not varname:
-        return varname
-    return ".".join(part.lstrip("+") for part in varname.split("."))
+def make_target_id(reference: str) -> str:
+    """Anchor for a path reference (see the module docstring)."""
+    out = ["mat-"]
+    for char in reference:
+        if char in _ANCHOR_SAFE or ord(char) > 0x7F:
+            out.append(char)
+        else:
+            out.extend(f"~{byte:02X}" for byte in char.encode("utf-8"))
+    return "".join(out)
 
 
-def classfolder_class_name(dotted_path: str) -> str:
-    """Collapse @ClassFolder.ClassFolder -> ClassFolder for classfolder roots."""
-    if "@" not in dotted_path:
-        return dotted_path
+def path_reference(
+    root, path, member: str | None = None, *, is_folder=None, pathmod=os.path
+) -> str:
+    """Path reference of ``path`` (a file or folder below ``root``).
 
-    parts = dotted_path.split(".")
-    if len(parts) == 1:
-        return dotted_path
-
-    stripped_parts = [part.lstrip("@") for part in parts]
-    if stripped_parts[-1] == stripped_parts[-2]:
-        return ".".join([*parts[:-2], stripped_parts[-1]])
-    return dotted_path
-
-
-def shortest_name(dotted_path: str) -> str:
-    """Create shortest valid MATLAB name from a dotted traversal path."""
-    parts = dotted_path.split(".")
-    if len(parts) == 1:
-        return parts[0].lstrip("+")
-
-    if "@" in dotted_path:
-        return dotted_path
-
-    parts_to_keep = []
-    for part in parts[:-1]:
-        if part.startswith("+"):
-            parts_to_keep.append(part.lstrip("+"))
-        elif len(parts_to_keep) > 0:
-            parts_to_keep = []
-
-    parts_to_keep.append(parts[-1].lstrip("+"))
-    return ".".join(parts_to_keep)
-
-
-def make_target_id(canonical_name: str) -> str:
-    """Anchor for a registered object name (see the module docstring)."""
-    target = (canonical_name or "").strip().lstrip(".")
-    return re.sub(r"\s+", "-", target)
-
-
-def make_module_target_id(modname: str) -> str:
-    """Anchor for a ``mat:module`` (see the module docstring)."""
-    return f"module-{make_target_id(modname)}"
-
-
-def short_link_modname(modname: str | None) -> str:
-    """Keep only the ``+package`` parts of a module name (matlab_short_links).
-
-    ``"target.+package"`` -> ``"+package"``; ``"target"`` -> ``""``.
+    ``is_folder=None`` detects folders by a trailing separator or on disk.
+    ``pathmod`` is ``os.path`` or, e.g. in tests, ``ntpath``/``posixpath``.
+    ``member`` (``"method"`` or ``"Cls.method"``) is appended with ``.``.
     """
-    return ".".join(part for part in (modname or "").split(".") if part.startswith("+"))
+    root, path = os.fspath(root), os.fspath(path)
+    seps = tuple(sep for sep in (pathmod.sep, pathmod.altsep) if sep)
+    if is_folder is None:
+        is_folder = path.endswith(seps) or (
+            pathmod is os.path and os.path.isdir(path)
+        )
+    rel = pathmod.relpath(pathmod.normpath(path), pathmod.normpath(root))
+    if pathmod.altsep:
+        rel = rel.replace(pathmod.altsep, pathmod.sep)
+    parts = [] if rel == pathmod.curdir else rel.split(pathmod.sep)
+    if parts and parts[0] == pathmod.pardir:
+        raise ValueError(f"{path} is not below the project root {root}")
+    reference = unicodedata.normalize("NFC", "/".join(parts))
+    if is_folder:
+        reference = f"{reference}/" if reference else ROOT_REFERENCE
+    elif not reference:
+        raise ValueError(f"{path} is the project root, not a file")
+    if member:
+        reference = f"{reference}.{member}"
+    return reference
 
 
-def registered_name_candidates(legacy_key: str) -> list[str]:
-    """Names an entity with discovery key ``legacy_key`` may be registered as.
+def parse_reference(
+    reference: str, extensions=REGISTERED_EXTENSIONS
+) -> tuple[str | None, list[str]]:
+    """Split a path reference into ``(file or folder, members)``.
 
-    Covers ``matlab_keep_package_prefix`` on/off, class-folder collapsing and
-    ``matlab_short_links``. Ordered, without duplicates.
+    The file part ends at the first registered extension in the last path
+    segment that is followed by ``.`` or the end:
+    ``"a/Cls.m.meth"`` -> ``("a/Cls.m", ["meth"])``; folders
+    (``"a/+pkg/"``) have no members. Returns ``(None, [])`` for anything
+    else, e.g. a MATLAB name or a folder without its trailing ``/``.
     """
-    collapsed = classfolder_class_name(legacy_key)
-    names = [
-        legacy_key,
-        collapsed,
-        strip_package_prefix(legacy_key),
-        strip_package_prefix(collapsed),
-        shortest_name(legacy_key),
-        shortest_name(collapsed),
-    ]
-    return list(dict.fromkeys(names))
+    if reference.endswith("/"):
+        return reference, []
+    head, sep, last = reference.rpartition("/")
+    for i, char in enumerate(last):
+        if char != "." or i == 0:
+            continue
+        for ext in extensions:
+            end = i + len(ext)
+            if last.startswith(ext, i) and (end == len(last) or last[end] == "."):
+                members = last[end + 1 :].split(".") if end < len(last) else []
+                if not all(members):
+                    return None, []
+                return head + sep + last[:end], members
+    return None, []
+
+
+def join_reference(folder: str, relative: str) -> str:
+    """Return the reference of ``relative`` below the folder reference ``folder``."""
+    return relative if folder == ROOT_REFERENCE else f"{folder}{relative}"
+
+
+def folder_of(reference: str) -> str:
+    """Folder reference of a file or member reference; folders map to themselves."""
+    file, _ = parse_reference(reference)
+    path = reference if file is None else file
+    if path.endswith("/"):
+        return path
+    head = path.rpartition("/")[0]
+    return f"{head}/" if head else ROOT_REFERENCE
+
+
+def is_private_reference(reference: str) -> bool:
+    """Return True if the object lives below a ``private/`` folder."""
+    return "private" in folder_of(reference).split("/")
+
+
+def split_display(display: str) -> tuple[str, str]:
+    """Split a display name into (qualifier, last part) for signatures.
+
+    MATLAB names split at the last ``.``; path references at the last ``/``.
+    """
+    sep = "/" if "/" in display.rstrip("/") else "."
+    head, found, _ = display.rstrip("/").rpartition(sep)
+    if not found or not head:
+        return "", display
+    return head + sep, display[len(head) + 1 :]
+
+
+def folder_namespace(
+    folder: str, namelengthmax: int, matlab_version: str = DEFAULT_MATLAB_VERSION
+) -> str | None:
+    """MATLAB namespace name of a ``+`` folder, or None for any other folder."""
+    parts = _split_folder(folder)
+    if not parts or not parts[-1].startswith("+"):
+        return None
+    location = _location(parts, namelengthmax, matlab_version)
+    return location[1] if location and location[0] == "package" else None
 
 
 def canonical_name(name: MatlabName) -> str:
@@ -242,49 +287,6 @@ def canonical_name(name: MatlabName) -> str:
     if not package or fullname == package or fullname.startswith(f"{package}."):
         return fullname
     return f"{package}.{name.pseudo_name}"
-
-
-def resolve_found_first(entries):
-    """Resolve duplicate names like the MATLAB path: the first entry wins.
-
-    ``entries`` is an iterable of ``(name, value)`` in precedence order (the
-    caller sorts by source-root order, then path order). Returns
-    ``(winners, shadowed)``: ``winners`` maps name -> first value, and
-    ``shadowed`` lists ``(name, shadowed_value, winning_value)``.
-    """
-    winners = {}
-    shadowed = []
-    for name, value in entries:
-        if name in winners:
-            shadowed.append((name, value, winners[name]))
-        else:
-            winners[name] = value
-    return winners, shadowed
-
-
-def split_canonical(name: str, canonical_names: dict):
-    """Split ``name`` into its longest known canonical prefix and the rest.
-
-    Returns ``(canonical_names[prefix], remaining_parts)`` or ``(None, [])``;
-    e.g. ``pkg.Cls.method`` -> ``(canonical_names["pkg.Cls"], ["method"])``.
-    """
-    parts = name.split(".")
-    for i in range(len(parts), 0, -1):
-        value = canonical_names.get(".".join(parts[:i]))
-        if value is not None:
-            return value, parts[i:]
-    return None, []
-
-
-def path_order_key(root_index: int, root: str, folder: str) -> tuple:
-    """Sort key for MATLAB-path precedence of ``folder`` below ``root``.
-
-    Earlier roots win; within a root, folders are ordered like ``genpath``
-    (a folder before its subfolders, siblings by name).
-    """
-    rel = os.path.relpath(os.path.normpath(folder), os.path.normpath(root))
-    parts = () if rel == os.curdir else Path(rel).parts
-    return (root_index, parts)
 
 
 def _split_folder(folder: str) -> list[str]:

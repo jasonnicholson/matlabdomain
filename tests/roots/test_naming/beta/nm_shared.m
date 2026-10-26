@@ -1,3 +1,3 @@
 function nm_shared()
-% Beta version (shadowed).
+% Beta version, same MATLAB name.
 end

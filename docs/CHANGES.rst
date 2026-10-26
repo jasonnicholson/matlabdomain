@@ -14,11 +14,35 @@ Release notes
 * Added new configuration: ``matlab_namelengthmax`` (``63`` or ``2048``). The
   default ``None`` derives it from ``matlab_version`` (2048 from R2025a on).
   An explicit value always wins over the derived default.
-* Source files are named the MATLAB way (``form_matlab_name``); duplicate
-  names resolve found-first like the MATLAB path, and shadowed files are
-  logged. Cross-references by MATLAB name (e.g. ``pkg.Cls.method``) now
-  resolve however the object was documented. Existing anchors are unchanged;
-  the anchor scheme is documented as a stable contract.
+* **Breaking:** objects are identified by path reference, the path relative
+  to the project root with its extension (``target/+package/ClassBar.m``,
+  members ``target/+package/ClassBar.m.myMethod``, folders
+  ``target/+package/``). Signatures and the inventory's display names show
+  the MATLAB name (``package.ClassBar``), formed like MATLAB does
+  (``form_matlab_name``). Cross-references resolve an exact path reference, then
+  relative to the current folder (including its ``private/``), then a unique
+  MATLAB name; an ambiguous name warns and lists the matching references.
+  There is no found-first precedence.
+
+  * Anchors are ``mat-`` followed by the escaped path reference
+    (``#mat-target/+package/ClassBar.m``); inventory names are path
+    references. Legacy dotted anchors, ``module-`` anchors and aliases are
+    gone, so existing deep links and intersphinx references change.
+  * ``mat:module``, ``mat:automodule``, ``mat:currentmodule`` and
+    ``:mat:mod:`` are replaced by ``mat:folder``, ``mat:autofolder``,
+    ``mat:currentfolder`` and ``:mat:folder:``. A valid ``+`` folder shows
+    ``namespace <name>``, any other folder ``folder <path>``; ``@Class``
+    folders are documented through their class. The module index is now the
+    folder index (``mat-folderindex.html``).
+  * New configuration ``matlab_src_code_project_root`` (relative to the Sphinx
+    source directory). ``matlab_src_dir`` is deprecated: it is still used as
+    the project root and warns (``mat.deprecated``).
+  * Setting ``matlab_keep_package_prefix`` or ``matlab_short_links`` raises a
+    ``ConfigError``; MATLAB names are always displayed.
+  * Files MATLAB cannot call for ``matlab_version`` (keyword namespaces,
+    invalid names, ``@C/sub`` files from R2026a, ...) are documented by path
+    with one ``mat.not_callable`` warning each (``suppress_warnings``); files
+    below ``private/`` never warn.
 * Fixed a segmentation fault (exit code 139) with tree-sitter 0.26.0 on
   standard CPython builds. Its ``Point.row`` getter corrupts reference counts,
   so point rows are now read by index.

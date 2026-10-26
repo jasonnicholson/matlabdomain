@@ -7,6 +7,6 @@ classdef Monoid < replab.Domain
 %
 %    .. method:: eqv
 %
-%       Documentation in :meth:`+replab.Domain.eqv`
+%       Documentation in :meth:`replab.Domain.eqv`
 
 end

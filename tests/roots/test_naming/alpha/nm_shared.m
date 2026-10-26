@@ -1,3 +1,3 @@
 function nm_shared()
-% Alpha version (first on the path).
+% Alpha version.
 end

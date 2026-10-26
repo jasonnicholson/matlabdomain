@@ -22,7 +22,7 @@ def test_first(app):
 
     assert content.astext() == (
         "First Class\n\n\n\n"
-        "class target.FirstClass\n\n"
+        "class FirstClass\n\n"
         "First class with two properties\n\n"
         "Property Summary\n\n\n\n\n\n"
         "a\n\n"
@@ -40,7 +40,7 @@ def test_second(app):
 
     assert content.astext() == (
         "Second Class\n\n\n\n"
-        "class target.SecondClass\n\n"
+        "class SecondClass\n\n"
         "Second class with methods and properties\n\n"
         "Constructor Summary\n\n\n\n\n\n"
         "SecondClass(a)\n\n"

@@ -1,13 +1,13 @@
 .. automodule:: func
 .. autofunction:: func.main
 
-.. mat:automodule:: matsrc
-.. mat:autofunction:: matsrc.func
+.. mat:autofolder:: matsrc
+.. mat:autofunction:: matsrc/func.m
 
 Indices and tables
 ==================
 
 * :ref:`genindex`
 * :ref:`modindex`
-* `MATLAB Module Index <mat-modindex.html>`_
+* `MATLAB Folder Index <mat-folderindex.html>`_
 * :ref:`search`

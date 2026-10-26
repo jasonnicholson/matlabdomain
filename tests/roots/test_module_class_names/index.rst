@@ -1,7 +1,7 @@
 Myclass
 =======
 
-.. currentmodule:: Myclass
+.. currentfolder:: Myclass
 
 .. autoclass:: Myclass
     :members:
@@ -10,10 +10,10 @@ Myclass
 YourClass
 =========
 
-.. currentmodule:: .
+.. currentfolder:: .
 
 .. autoclass:: YourClass
     :members:
 
-.. automodule:: Myclass.MyOtherClass
+.. autofolder:: Myclass/MyOtherClass
     :members:

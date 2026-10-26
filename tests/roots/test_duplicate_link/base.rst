@@ -1,18 +1,18 @@
 Base object types in RepLAB
 ===========================
 
-.. module:: +replab
+.. folder:: +replab
 
 .. _Str:
 
 Str
 +++
 
-.. autoclass:: Str
+.. autoclass:: Str.m
 
 .. _Domain:
 
 Domain
 ++++++
 
-.. autoclass:: Domain
+.. autoclass:: Domain.m

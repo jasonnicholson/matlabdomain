@@ -20,4 +20,4 @@ def test_pymat(app):
 
     # matlab code
     assert isinstance(content[7], addnodes.desc)
-    assert content[7].astext() == "matsrc.func(x)\n\nReturns x"
+    assert content[7].astext() == "func(x)\n\nReturns x"

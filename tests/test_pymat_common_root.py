@@ -20,4 +20,4 @@ def test_pymat_common_root(app):
     assert content[4].astext().startswith("class base.PythonClass.PythonClass")
 
     assert isinstance(content[8], addnodes.desc)
-    assert content[8].astext().startswith("class base.MatlabClass")
+    assert content[8].astext().startswith("class MatlabClass")

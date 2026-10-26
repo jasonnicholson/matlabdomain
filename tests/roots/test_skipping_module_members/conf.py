@@ -1,9 +1,7 @@
-import os
-
 author = "Jørgen Cederberg"
 copyright = "Jørgen Cederberg"
 extensions = ["sphinx.ext.autodoc", "sphinxcontrib.matlab"]
-matlab_src_dir = os.path.abspath(".")
+matlab_src_code_project_root = "."
 primary_domain = "mat"
 project = "Skipping Members"
 nitpicky = True

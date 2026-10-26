@@ -1,17 +1,17 @@
 
-This is a :func:`+package.func`.
+This is a :func:`package.func`.
 
-.. automodule:: +package
-.. autofunction:: func
+.. autofolder:: +package
+.. autofunction:: func.m
 
-.. automodule:: +package.+subpkg
-.. autofunction:: func
+.. autofolder:: +package/+subpkg
+.. autofunction:: func.m
 
-This is a :func:`func`.
+This is a :func:`~package.subpkg.func`.
 
 Indices and tables
 ==================
 
 * :ref:`genindex`
-* `MATLAB Module Index <mat-modindex.html>`_
+* `MATLAB Folder Index <mat-folderindex.html>`_
 * :ref:`search`

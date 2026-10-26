@@ -1,39 +1,39 @@
 Abstract group structures in RepLAB
 ===================================
 
-.. module:: +replab
+.. folder:: +replab
 
 .. _Monoid:
 
 Monoid
 ++++++
 
-.. autoclass:: Monoid
+.. autoclass:: Monoid.m
 
 .. _Group:
 
 Group
 +++++
 
-.. autoclass:: Group
+.. autoclass:: Group.m
 
 .. _CompactGroup:
 
 CompactGroup
 ++++++++++++
 
-.. autoclass:: CompactGroup
+.. autoclass:: CompactGroup.m
 
 .. _FiniteGroup:
 
 FiniteGroup
 +++++++++++
 
-.. autoclass:: FiniteGroup
+.. autoclass:: FiniteGroup.m
 
 .. _NiceFiniteGroup:
 
 NiceFiniteGroup
 +++++++++++++++
 
-.. autoclass:: NiceFiniteGroup
+.. autoclass:: NiceFiniteGroup.m

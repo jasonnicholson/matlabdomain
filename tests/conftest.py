@@ -77,7 +77,7 @@ def confdict() -> dict:
         @pytest.fixture
         def confdict():
         return {
-            "matlab_keep_package_prefix": True,
+            "matlab_show_property_default_value": True,
         }
 
         def test_something(app, confdict):
@@ -89,12 +89,12 @@ def confdict() -> dict:
     .. code-block:: python
 
         @pytest.fixture
-        def confdict(matlab_keep_package_prefix):
-            return {"matlab_keep_package_prefix": matlab_keep_package_prefix}
+        def confdict(matlab_auto_link):
+            return {"matlab_auto_link": matlab_auto_link}
 
 
-        @pytest.mark.parametrize("matlab_keep_package_prefix", [True, False])
-        def test_something(app, confdict, matlab_keep_package_prefix): ...
+        @pytest.mark.parametrize("matlab_auto_link", ["basic", "all"])
+        def test_something(app, confdict, matlab_auto_link): ...
 
 
     or you can also do
@@ -104,8 +104,8 @@ def confdict() -> dict:
         @pytest.mark.parametrize(
             "confdict",
             [
-                {"matlab_short_links": True, "matlab_auto_link": "basic"},
-                {"matlab_short_links": True, "matlab_auto_link": "all"},
+                {"matlab_show_property_specs": True, "matlab_auto_link": "basic"},
+                {"matlab_show_property_specs": True, "matlab_auto_link": "all"},
             ],
         )
         def test_something(app, confdict): ...

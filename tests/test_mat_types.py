@@ -10,90 +10,8 @@ from sphinxcontrib.mat_types import (
     MatObject,
     MatProperty,
     MatScript,
-    classfolder_class_name,
-    shortest_name,
+    project_root,
 )
-
-
-def test_classfolder_class_name():
-    name = classfolder_class_name("target.@ClassFolder")
-    assert name == "target.@ClassFolder"
-
-    name = classfolder_class_name("target.@ClassFolder.Func")
-    assert name == "target.@ClassFolder.Func"
-
-    name = classfolder_class_name("target.@ClassFolder.ClassFolder")
-    assert name == "target.ClassFolder"
-
-    name = classfolder_class_name("target.+pkg.@ClassFolder.ClassFolder")
-    assert name == "target.+pkg.ClassFolder"
-
-    name = classfolder_class_name("@ClassFolder")
-    assert name == "@ClassFolder"
-
-    name = classfolder_class_name("@ClassFolder.Func")
-    assert name == "@ClassFolder.Func"
-
-    name = classfolder_class_name("@ClassFolder.ClassFolder")
-    assert name == "ClassFolder"
-
-
-def test_shortest_name_no_alternative():
-    name = shortest_name("Class")
-    assert name == "Class"
-
-    name = shortest_name("")
-    assert name == ""
-
-
-def test_shortest_name_packages():
-    name = shortest_name("+package.Function")
-    assert name == "package.Function"
-
-    name = shortest_name("sub.+package.Function")
-    assert name == "package.Function"
-
-    name = shortest_name("sub.+package.Function")
-    assert name == "package.Function"
-
-    name = shortest_name("sub.+package.+level.Function")
-    assert name == "package.level.Function"
-
-
-def test_shortest_name_folders():
-    name = shortest_name("sub1.sub2.sub3.Function")
-    assert name == "Function"
-
-    name = shortest_name("sub1.Function")
-    assert name == "Function"
-
-
-def test_shortest_name_weird():
-    name = shortest_name("sub1.+sub2.sub3.Function")
-    assert name == "Function"
-
-
-def test_shortest_name_classfolders():
-    name = shortest_name("target.@ClassFolder")
-    assert name == "target.@ClassFolder"
-
-    name = shortest_name("target.@ClassFolder.Func")
-    assert name == "target.@ClassFolder.Func"
-
-    name = shortest_name("target.@ClassFolder.ClassFolder")
-    assert name == "target.@ClassFolder.ClassFolder"
-
-    name = shortest_name("target.+pkg.@ClassFolder.ClassFolder")
-    assert name == "target.+pkg.@ClassFolder.ClassFolder"
-
-    name = shortest_name("@ClassFolder")
-    assert name == "@ClassFolder"
-
-    name = shortest_name("@ClassFolder.Func")
-    assert name == "@ClassFolder.Func"
-
-    name = shortest_name("@ClassFolder.ClassFolder")
-    assert name == "@ClassFolder.ClassFolder"
 
 
 def test_ClassExample(dir_test_data):
@@ -1119,7 +1037,7 @@ def app(make_app, rootdir):
     # Create app to setup build environment
     srcdir = rootdir / "test_docs"
     app = make_app(srcdir=srcdir)
-    MatObject.basedir = app.config.matlab_src_dir
+    MatObject.basedir = project_root(app.config, app.srcdir)
     return app
 
 
@@ -1144,7 +1062,7 @@ def test_module(dir_test_data, mod, app):
     assert mod.getter("__name__") == "test_data"
     assert mod.getter("__path__")[0] == str(dir_test_data)
     assert mod.getter("__file__") == str(dir_test_data)
-    assert mod.getter("__package__") == "test_data"
+    assert mod.getter("__package__") == "test_data/"
     assert not mod.getter("__module__")
     assert not mod.getter("__doc__")
     all_entities = mod.getter("__all__")
@@ -1224,7 +1142,7 @@ def test_module(dir_test_data, mod, app):
         "arguments",
     }
     assert all_items == expected_items
-    assert mod.getter("__name__") in app.env.get_domain("mat").entities_table
+    assert "test_data/" in app.env.get_domain("mat").entities_table
 
 
 def test_parse_twice(mod):
@@ -1237,7 +1155,7 @@ def test_classes(mod):
     cls = mod.getter("ClassInheritHandle")
     assert isinstance(cls, MatClass)
     assert cls.getter("__name__") == "ClassInheritHandle"
-    assert cls.getter("__module__") == "test_data"
+    assert cls.getter("__module__") == "test_data/"
     assert cls.bases == ["handle", "my.super.Class"]
     assert cls.attrs == {}
     assert cls.properties == {
@@ -1258,7 +1176,7 @@ def test_abstract_class(mod):
     abc = mod.getter("ClassAbstract")
     assert isinstance(abc, MatClass)
     assert abc.getter("__name__") == "ClassAbstract"
-    assert abc.getter("__module__") == "test_data"
+    assert abc.getter("__module__") == "test_data/"
     assert "ClassInheritHandle" in abc.getter("__bases__")
     assert "ClassExample" in abc.getter("__bases__")
     assert abc.bases == ["ClassInheritHandle", "ClassExample"]
@@ -1326,13 +1244,13 @@ def test_class_method(mod):
 
 
 def test_submodule_class(mod):
-    cls = mod.getter("submodule.TestFibonacci")
+    cls = mod.getter("submodule/TestFibonacci")
     assert isinstance(cls, MatClass)
     assert cls.docstring == "Test of MATLAB unittest method attributes"
     assert cls.attrs == {}
     assert cls.bases == ["matlab.unittest.TestCase"]
     assert "compareFirstThreeElementsToExpected" in cls.methods
-    assert cls.module == "test_data.submodule"
+    assert cls.module == "test_data/submodule/"
     assert cls.properties == {}
     method = cls.getter("compareFirstThreeElementsToExpected")
     assert isinstance(method, MatMethod)
@@ -1350,7 +1268,7 @@ def test_folder_class(mod):
     assert cls.docstring == "A class in a folder"
     assert cls.attrs == {}
     assert cls.bases == []
-    assert cls.module == "test_data.@ClassFolder"
+    assert cls.module == "test_data/@ClassFolder/"
     assert cls.properties == {
         "p": {
             "attrs": {},
@@ -1402,7 +1320,7 @@ def test_function_getter(mod):
         func.getter("__doc__")
         == "a fun function\n\n:param a1: the first input\n:param a2: another input\n:returns: ``[o1, o2, o3]`` some outputs"
     )
-    assert func.getter("__module__") == "test_data"
+    assert func.getter("__module__") == "test_data/"
 
 
 def test_package_function(mod):

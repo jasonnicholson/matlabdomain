@@ -8,6 +8,6 @@ copyright = "Mark Mikofski"
 extensions = ["sphinx.ext.autodoc", "sphinxcontrib.matlab"]
 matlab_show_property_default_value = True
 matlab_show_property_specs = True
-matlab_src_dir = os.path.abspath("..")
+matlab_src_code_project_root = ".."
 primary_domain = "mat"
 project = "MATLAB Sphinx Documentation Test"

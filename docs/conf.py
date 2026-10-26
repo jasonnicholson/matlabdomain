@@ -11,7 +11,6 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
 
 # -- Project information -----------------------------------------------------
 
@@ -35,7 +34,7 @@ needs_sphinx = "7.0"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ["sphinx.ext.autodoc", "sphinxcontrib.matlab", "sphinx.ext.napoleon"]
-matlab_src_dir = os.path.dirname(os.path.abspath(__file__))
+matlab_src_code_project_root = "."
 primary_domain = "mat"
 
 

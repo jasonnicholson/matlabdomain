@@ -1,5 +1,6 @@
-"""MATLAB names in a build: discovery, found-first, anchors and cross-references."""
+"""Path references in a build: discovery, anchors, folders and cross-references."""
 
+import html as html_lib
 import re
 from collections import Counter
 
@@ -14,9 +15,18 @@ def srcdir(rootdir):
     return rootdir / "roots" / "test_naming"
 
 
-def html(app):
-    text = (app.outdir / "index.html").read_text()
+def html(app, page="index"):
+    text = (app.outdir / f"{page}.html").read_text()
     return text.split('<div class="body"')[1].split('<div class="sphinxsidebar"')[0]
+
+
+def ids(text):
+    return [html_lib.unescape(i) for i in re.findall(r'\bid="([^"]*)"', text)]
+
+
+def object_hrefs(text):
+    hrefs = (html_lib.unescape(h) for h in re.findall(r'href="#([^"]*)"', text))
+    return [h for h in hrefs if h.startswith("mat-")]
 
 
 def index_names(app):
@@ -28,96 +38,172 @@ def index_names(app):
 
 
 @pytest.mark.parametrize("confdict", [{}])
-def test_discovery_uses_matlab_names(app):
+def test_discovery_uses_path_references(app):
     index = index_names(app)
-    assert {path: e["canonical_name"] for path, e in index.items()} == {
-        "+for/nm_kw.m": None,  # keyword package
-        "+nmpkg/@NmCls/NmCls.m": "nmpkg.NmCls",
-        "+nmpkg/@NmCls/nm_helper.m": "nmpkg.NmCls.nm_helper",
-        "+nmpkg/nm_func.m": "nmpkg.nm_func",
-        "@NmBox/NmBox.m": "NmBox",
-        "@NmBox/sub/nm_legacy.m": None,  # R2026a: class subfolder
-        "alpha/nm_shared.m": "nm_shared",
-        "beta/nm_shared.m": "nm_shared",
-        "my folder/nm_spaced.m": "nm_spaced",
-        "private/nm_priv.m": "nm_priv",
+    found = {
+        p: (e["reference"], e["matlab_name"], e["scope"]) for p, e in index.items()
+    }
+    assert found == {
+        "+for/nm_kw.m": ("+for/nm_kw.m", None, None),  # keyword namespace
+        "+nmpkg/@NmCls/NmCls.m": ("+nmpkg/@NmCls/NmCls.m", "nmpkg.NmCls", "./"),
+        "+nmpkg/@NmCls/nm_helper.m": (
+            "+nmpkg/@NmCls/nm_helper.m",
+            "nmpkg.NmCls.nm_helper",
+            "./",
+        ),
+        "+nmpkg/nm_func.m": ("+nmpkg/nm_func.m", "nmpkg.nm_func", "./"),
+        "@NmBox/NmBox.m": ("@NmBox/NmBox.m", "NmBox", "./"),
+        "@NmBox/sub/nm_legacy.m": ("@NmBox/sub/nm_legacy.m", None, None),  # R2026a
+        "alpha/nm_shared.m": ("alpha/nm_shared.m", "nm_shared", "alpha/"),
+        "beta/nm_shared.m": ("beta/nm_shared.m", "nm_shared", "beta/"),
+        "my folder/nm_spaced.m": ("my folder/nm_spaced.m", "nm_spaced", "my folder/"),
+        "private/nm_priv.m": ("private/nm_priv.m", "nm_priv", "./"),
     }
     assert [p for p, e in index.items() if e["private"]] == ["private/nm_priv.m"]
-    # Legacy entity keys are kept alongside.
-    assert index["my folder/nm_spaced.m"]["name"] == "my folder.nm_spaced"
-    assert app.env.domaindata["mat"]["canonical_names"] == {
-        "NmBox": "@NmBox.NmBox",
-        "nm_shared": "alpha.nm_shared",
-        "nm_spaced": "my folder.nm_spaced",
-        "nmpkg.NmCls": "+nmpkg.@NmCls.NmCls",
-        "nmpkg.nm_func": "+nmpkg.nm_func",
+    data = app.env.domaindata["mat"]
+    assert {n: sorted(r) for n, r in data["matlab_names"].items()} == {
+        "NmBox": ["@NmBox/NmBox.m"],
+        "nm_priv": ["private/nm_priv.m"],
+        "nm_shared": ["alpha/nm_shared.m", "beta/nm_shared.m"],
+        "nm_spaced": ["my folder/nm_spaced.m"],
+        "nmpkg": ["+nmpkg/"],
+        "nmpkg.NmCls": ["+nmpkg/@NmCls/NmCls.m"],
+        "nmpkg.nm_func": ["+nmpkg/nm_func.m"],
+    }
+    folders = {r for r in data["entities_table"] if r.endswith("/")}
+    assert folders == {
+        "./",
+        "+for/",
+        "+nmpkg/",
+        "+nmpkg/@NmCls/",
+        "@NmBox/",
+        "@NmBox/sub/",
+        "alpha/",
+        "beta/",
+        "my folder/",
+        "private/",
     }
 
 
 @pytest.mark.parametrize("confdict", [{}])
-def test_found_first_shadowing(app):
-    assert (
-        f"nm_shared in {app.srcdir / 'beta' / 'nm_shared.m'} is shadowed by "
-        f"{app.srcdir / 'alpha' / 'nm_shared.m'}"
-    ) in app.status.getvalue()
-    # The bare MATLAB name documents and links the found-first file.
-    text = html(app)
-    assert "Alpha version (first on the path)." in text
-    assert 'href="#alpha.nm_shared"' in text
+def test_not_callable_files_warn_once(app):
+    warnings = app.warning.getvalue()
+    for ref in ("+for/nm_kw.m", "@NmBox/sub/nm_legacy.m"):
+        assert warnings.count(f"{ref} is not callable in MATLAB R2026a") == 1
+    # private/nm_priv.m is callable from its parent folder: no warning.
+    assert warnings.count("[mat.not_callable]") == 2
 
 
-@pytest.mark.parametrize(
-    ("confdict", "prefix"),
-    [
-        ({"matlab_keep_package_prefix": False}, ""),
-        ({"matlab_keep_package_prefix": True}, "+"),
-    ],
-)
-def test_anchors_and_matlab_name_xrefs(app, prefix):
-    text = html(app)
-    ids = re.findall(r'\bid="([^"]*)"', text)
-    expected = [
-        f"{prefix}nmpkg.nm_func",
-        f"{prefix}nmpkg.NmCls",
-        f"{prefix}nmpkg.NmCls.NmCls",
-        f"{prefix}nmpkg.NmCls.nm_helper",
-        "alpha.nm_shared",
-        "beta.nm_shared",
-        "nm_spaced",
-    ]
-    assert [i for i in ids if i not in ("naming", "matlab-names")] == expected
-    assert all(n == 1 for n in Counter(ids).values())
-
-    # Every "MATLAB names" xref resolves, whatever name the object was
-    # documented under.
-    xrefs = text.split('id="matlab-names"')[1]
-    hrefs = re.findall(r'href="#([^"]*)"', xrefs)
-    assert hrefs == [
-        "matlab-names",  # heading permalink
-        f"{prefix}nmpkg.nm_func",
-        f"{prefix}nmpkg.NmCls",
-        f"{prefix}nmpkg.NmCls.nm_helper",
-        "alpha.nm_shared",
-        "nm_spaced",
-        f"{prefix}nmpkg.nm_func",
-    ]
-    assert "WARNING" not in app.warning.getvalue()
+@pytest.mark.parametrize("confdict", [{"suppress_warnings": ["mat.not_callable"]}])
+def test_not_callable_warning_can_be_suppressed(app):
+    assert "not callable" not in app.warning.getvalue()
 
 
 @pytest.mark.parametrize("confdict", [{}])
-def test_inventory_anchors_follow_contract(app):
+def test_anchors_and_signatures(app):
+    text = html(app)
+    anchors = [i for i in ids(text) if i.startswith("mat-")]
+    assert anchors == [
+        "mat-+nmpkg/nm_func.m",
+        "mat-+nmpkg/@NmCls/NmCls.m",
+        "mat-+nmpkg/@NmCls/NmCls.m.NmCls",
+        "mat-+nmpkg/@NmCls/NmCls.m.nm_helper",
+        "mat-alpha/nm_shared.m",
+        "mat-beta/nm_shared.m",
+        "mat-my~20folder/nm_spaced.m",
+        "mat-private/nm_priv.m",
+        "mat-+for/nm_kw.m",
+        "mat-@NmBox/sub/nm_legacy.m",
+        "mat-+nmpkg/",
+        "mat-alpha/",
+    ]
+    assert all(n == 1 for n in Counter(ids(text)).values())
+    plain = html_lib.unescape(re.sub(r"<[^>]+>", "", text))
+    # MATLAB names; paths for files MATLAB cannot call; folder kinds.
+    for sig in (
+        "nmpkg.nm_func(x)",
+        "class nmpkg.NmCls",
+        "nm_priv()",
+        "+for/nm_kw.m()",
+        "@NmBox/sub/nm_legacy.m()",
+        "namespace nmpkg",
+        "folder alpha/",
+    ):
+        assert sig in plain
+
+
+@pytest.mark.parametrize("confdict", [{}])
+def test_cross_reference_resolution_order(app):
+    sections = {
+        chunk.split('"', 1)[0]: chunk
+        for chunk in html(app).split('<section id="')[1:]
+    }
+    # Current folder alpha/ (set by "mat:folder:: alpha").
+    assert object_hrefs(sections["matlab-names"]) == [
+        "mat-+nmpkg/nm_func.m",
+        "mat-+nmpkg/@NmCls/NmCls.m",
+        "mat-+nmpkg/@NmCls/NmCls.m.nm_helper",
+        "mat-my~20folder/nm_spaced.m",
+        "mat-+nmpkg/nm_func.m",  # .nm_func
+        "mat-+nmpkg/",
+        "mat-alpha/nm_shared.m",  # relative to the current folder
+    ]
+    assert object_hrefs(sections["path-references"]) == [
+        "mat-beta/nm_shared.m",
+        "mat-private/nm_priv.m",
+        "mat-+for/nm_kw.m",
+        "mat-+nmpkg/@NmCls/NmCls.m.nm_helper",
+        "mat-alpha/",
+        "mat-my~20folder/nm_spaced.m",
+    ]
+    assert ">nm_spaced.m()<" in sections["path-references"]  # ~ shortens the title
+    # From the root folder, its private/ files are visible by MATLAB name.
+    assert object_hrefs(sections["root-folder"]) == [
+        "mat-private/nm_priv.m",
+        "mat-alpha/nm_shared.m",
+    ]
+    # Without a folder: an ambiguous name is not linked; private files are
+    # reachable by path only.
+    assert object_hrefs(sections["no-folder"]) == []
+    warnings = app.warning.getvalue()
+    assert (
+        "'nm_shared' matches several objects: alpha/nm_shared.m, beta/nm_shared.m"
+        in warnings
+    )
+    assert "reference target not found: nm_priv" in warnings
+    assert "reference target not found: nm_shared" not in warnings
+
+
+@pytest.mark.parametrize("confdict", [{}])
+def test_inventory_uses_path_references(app):
     dom = app.env.get_domain("mat")
-    for name, _, _, _, anchor, _ in dom.get_objects():
-        if name in dom.data["modules"]:
-            assert anchor == mat_naming.make_module_target_id(name)
-        else:
-            assert anchor == mat_naming.make_target_id(name) == name
+    for name, dispname, _, _, anchor, _ in dom.get_objects():
+        assert anchor == mat_naming.make_target_id(name)
+        assert dispname == dom.data["objects"][name][2]
     with open(app.outdir / "objects.inv", "rb") as f:
         inv = InventoryFile.load(f, "", lambda _base, uri: uri)
-    funcs = inv["mat:function"]
-    uri = funcs["nmpkg.nm_func"]
-    uri = uri[2] if isinstance(uri, tuple) else uri.uri
-    assert uri == "index.html#nmpkg.nm_func"
+
+    def entry(objtype, name):
+        item = inv[objtype][name]
+        if isinstance(item, tuple):
+            return item[2], item[3]
+        return item.uri, item.display_name
+
+    assert entry("mat:function", "+nmpkg/nm_func.m") == (
+        "index.html#mat-+nmpkg/nm_func.m",
+        "nmpkg.nm_func",
+    )
+    assert entry("mat:method", "+nmpkg/@NmCls/NmCls.m.nm_helper") == (
+        "index.html#mat-+nmpkg/@NmCls/NmCls.m.nm_helper",
+        "nmpkg.NmCls.nm_helper",
+    )
+    assert entry("mat:function", "my folder/nm_spaced.m") == (
+        "index.html#mat-my~20folder/nm_spaced.m",
+        "nm_spaced",
+    )
+    assert entry("mat:folder", "+nmpkg/")[1] == "nmpkg"
+    assert entry("mat:folder", "alpha/")[0] == "index.html#mat-alpha/"
+    assert "mat:module" not in inv
 
 
 @pytest.mark.parametrize(
@@ -130,8 +216,10 @@ def test_inventory_anchors_follow_contract(app):
 )
 def test_class_subfolder_callability_follows_matlab_version(app, callable_):
     entry = index_names(app)["@NmBox/sub/nm_legacy.m"]
-    assert entry["canonical_name"] == ("nm_legacy" if callable_ else None)
-    assert ("nm_legacy" in app.env.domaindata["mat"]["canonical_names"]) is callable_
+    assert entry["matlab_name"] == ("nm_legacy" if callable_ else None)
+    assert ("nm_legacy" in app.env.domaindata["mat"]["matlab_names"]) is callable_
+    warned = "@NmBox/sub/nm_legacy.m is not callable" in app.warning.getvalue()
+    assert warned is not callable_
 
 
 @pytest.mark.parametrize(
@@ -146,13 +234,101 @@ def test_namelengthmax_in_build(app, expected):
     assert app.config.matlab_namelengthmax == expected
 
 
-def test_target_id_collision_warns(make_app, tmp_path):
+def test_section_and_object_ids_do_not_clash(make_app, tmp_path):
     (tmp_path / "conf.py").write_text('extensions = ["sphinxcontrib.matlab"]\n')
     (tmp_path / "index.rst").write_text(
         "first\n=====\n\n.. mat:function:: first\n\n.. mat:function:: second\n"
     )
     app = make_app(srcdir=tmp_path)
     app.build()
-    assert "first and first share the target id 'first'" in app.warning.getvalue()
-    assert "second" not in app.warning.getvalue()
-    assert "first" not in app.env.domaindata["mat"]["objects"]
+    assert "WARNING" not in app.warning.getvalue()
+    # Hand-written objects without a source file keep their written name.
+    objects = app.env.domaindata["mat"]["objects"]
+    assert objects["first"] == ("index", "function", "first")
+    assert {"first", "mat-first", "mat-second"} <= set(ids(html(app)))
+
+
+def test_auto_directive_resolution_order(make_app, tmp_path):
+    for path, text in {
+        "a/f.m": "function f\n% A f\nend\n",
+        "b/f.m": "function f\n% B f\nend\n",
+        "a/private/p.m": "function p\n% A private p\nend\n",
+        "+pk/g.m": "function g\n% G\n%\n% See also f, b/f.m\nend\n",
+    }.items():
+        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / path).write_text(text)
+    (tmp_path / "conf.py").write_text(
+        'extensions = ["sphinx.ext.autodoc", "sphinxcontrib.matlab"]\n'
+        'matlab_src_code_project_root = "."\n'
+        'matlab_auto_link = "basic"\n'
+        'primary_domain = "mat"\n'
+    )
+    (tmp_path / "index.rst").write_text(
+        "Index\n=====\n\n"
+        ".. mat:autofunction:: f\n\n"  # ambiguous
+        ".. mat:autofunction:: p\n\n"  # private: not by MATLAB name from elsewhere
+        ".. mat:currentfolder:: a\n\n"
+        ".. mat:autofunction:: p\n\n"  # a/private/p.m
+        ".. mat:autofunction:: f\n\n"  # a/f.m
+        ".. mat:autofunction:: b/f.m\n\n"  # exact path reference
+        ".. mat:autofunction:: pk.g\n"  # MATLAB name
+    )
+    app = make_app(srcdir=tmp_path)
+    app.build()
+    objects = app.env.domaindata["mat"]["objects"]
+    assert set(objects) == {"a/private/p.m", "a/f.m", "b/f.m", "+pk/g.m"}
+    warnings = app.warning.getvalue()
+    assert "'f' matches several objects: a/f.m, b/f.m" in warnings
+    assert "don't know which object to document for 'p'" in warnings
+    # "See also" in +pk/g.m: an ambiguous MATLAB name warns and stays literal.
+    assert "'f' in the docstring of +pk/g.m matches several objects" in warnings
+    assert object_hrefs(html(app)).count("mat-b/f.m") == 2  # headerlink, See also
+
+
+def test_folder_directive_and_roles(make_app, tmp_path):
+    for path, text in {
+        "a/f.m": "function f\nend\n",
+        "+pk/g.m": "function g\nend\n",
+        "@C/C.m": "classdef C\nend\n",
+    }.items():
+        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / path).write_text(text)
+    (tmp_path / "conf.py").write_text(
+        'extensions = ["sphinxcontrib.matlab"]\n'
+        'matlab_src_code_project_root = "."\n'
+    )
+    (tmp_path / "index.rst").write_text(
+        "Index\n=====\n\n"
+        ".. mat:folder:: a\n   :synopsis: Tools.\n   :platform: Linux\n"
+        "   :deprecated:\n\n"
+        ".. mat:folder:: +pk\n\n"
+        ".. mat:folder:: .\n\n"
+        ".. mat:folder:: @C\n\n"
+        ".. mat:function:: pk.g\n\n"
+        "Links: :mat:folder:`a`, :mat:folder:`pk`, :mat:folder:`.`, "
+        ":any:`pk.g`, :mat:func:`a/f.m()`.\n"
+    )
+    app = make_app(srcdir=tmp_path)
+    app.build()
+    warnings = app.warning.getvalue()
+    assert "@C/ is a class folder; document its class instead" in warnings
+    objects = app.env.domaindata["mat"]["objects"]
+    assert objects["a/"] == ("index", "folder", "a/")
+    assert objects["+pk/"] == ("index", "folder", "pk")
+    assert objects["./"] == ("index", "folder", "./")
+    assert objects["+pk/g.m"] == ("index", "function", "pk.g")
+    assert "@C/" not in objects
+    text = html(app)
+    assert 'title="a/: Tools. (deprecated) (Linux)"' in text
+    assert object_hrefs(text) == [
+        *("mat-a/", "mat-+pk/", "mat-./", "mat-+pk/g.m"),  # headerlinks
+        *("mat-a/", "mat-+pk/", "mat-./", "mat-+pk/g.m"),
+    ]
+    # a/f.m is not documented: the role keeps its text and parentheses.
+    assert "a/f.m()" in text
+    assert '<span class="pre">.</span>' in text  # root folder link title
+    assert app.env.domaindata["mat"]["folders"]["a/"][1:] == (
+        "Tools.",
+        "Linux",
+        True,
+    )

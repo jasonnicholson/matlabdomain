@@ -64,7 +64,7 @@ def test_third(app):
 
     assert content[0].astext() == (
         "Third\n\n\n\n"
-        "class Third\n\n"
+        "class pkg.Third\n\n"
         "The third class\n\n"
         "Constructor Summary\n\n\n\n\n\n"
         "Third(c)\n\n"

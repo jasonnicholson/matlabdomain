@@ -68,15 +68,14 @@ def doctree_text(app, docname):
 
 
 def test_initial_data_layout():
-    assert MATLABDomain.data_version == 3
+    assert MATLABDomain.data_version == 4
     assert set(MATLABDomain.initial_data) == {
         "objects",
-        "modules",
+        "folders",
         "index",
         "parse_cache",
         "entities_table",
-        "entities_name_map",
-        "canonical_names",
+        "matlab_names",
     }
 
 
@@ -86,7 +85,6 @@ def test_source_state_is_env_owned(make_app, srcdir):
     dom = app.env.get_domain("mat")
 
     assert dom.entities_table is data["entities_table"]
-    assert dom.entities_name_map is data["entities_name_map"]
 
     m_files = sorted(str(p) for p in srcdir.rglob("*.m"))
     assert sorted(data["index"]) == m_files
@@ -96,12 +94,13 @@ def test_source_state_is_env_owned(make_app, srcdir):
         assert (entry["mtime"], entry["size"]) == (st.st_mtime_ns, st.st_size)
         assert data["parse_cache"][path, st.st_mtime_ns, st.st_size] is not None
     assert data["index"][str(srcdir / "src" / "@Second" / "Second.m")] == {
-        "name": "src.@Second.Second",
+        "reference": "src/@Second/Second.m",
         "type": "class",
         "mtime": os.stat(srcdir / "src" / "@Second" / "Second.m").st_mtime_ns,
         "size": os.stat(srcdir / "src" / "@Second" / "Second.m").st_size,
-        "canonical_name": "Second",
+        "matlab_name": "Second",
         "private": False,
+        "scope": "src/",
     }
     method_file = str(srcdir / "src" / "@Second" / "method_in_folder.m")
     assert data["index"][method_file]["type"] == "function"
@@ -210,16 +209,16 @@ def test_clear_doc_only_removes_that_doc(make_app, srcdir):
     data = dom.data
     source_state = {
         k: dict(data[k])
-        for k in ("index", "parse_cache", "entities_table", "entities_name_map")
+        for k in ("index", "parse_cache", "entities_table", "matlab_names")
     }
-    docs = {fn for fn, _ in data["objects"].values()}
+    docs = {fn for fn, _, _ in data["objects"].values()}
     assert {"index_first", "index_second", "index_third"} <= docs
     kept = {k: v for k, v in data["objects"].items() if v[0] != "index_second"}
 
     dom.clear_doc("index_second")
 
     assert data["objects"] == kept
-    assert all(fn != "index_second" for fn, _, _, _ in data["modules"].values())
+    assert all(fn != "index_second" for fn, _, _, _ in data["folders"].values())
     for k, v in source_state.items():
         assert data[k] == v
 
@@ -229,29 +228,29 @@ def test_merge_domaindata_filters_by_docnames(make_app, srcdir):
     dom = app.env.get_domain("mat")
     source_state = {
         k: dict(dom.data[k])
-        for k in ("index", "parse_cache", "entities_table", "entities_name_map")
+        for k in ("index", "parse_cache", "entities_table", "matlab_names")
     }
     before = dict(dom.data["objects"])
     otherdata = {
         "objects": {
-            "a.Obj": ("doc_a", "class"),
-            "b.Obj": ("doc_b", "class"),
+            "a/Obj.m": ("doc_a", "class", "Obj"),
+            "b/Obj.m": ("doc_b", "class", "Obj"),
         },
-        "modules": {
-            "a": ("doc_a", "", "", False),
-            "b": ("doc_b", "", "", False),
+        "folders": {
+            "a/": ("doc_a", "", "", False),
+            "b/": ("doc_b", "", "", False),
         },
         "index": {"/elsewhere/x.m": {}},
         "parse_cache": {("/elsewhere/x.m", 0, 0): object()},
-        "entities_table": {"x": object()},
-        "entities_name_map": {"x": "x"},
+        "entities_table": {"x.m": object()},
+        "matlab_names": {"x": ["x.m"]},
     }
 
     dom.merge_domaindata({"doc_a"}, otherdata)
 
-    assert dom.data["objects"] == {**before, "a.Obj": ("doc_a", "class")}
-    assert dom.data["modules"]["a"] == ("doc_a", "", "", False)
-    assert "b" not in dom.data["modules"]
+    assert dom.data["objects"] == {**before, "a/Obj.m": ("doc_a", "class", "Obj")}
+    assert dom.data["folders"]["a/"] == ("doc_a", "", "", False)
+    assert "b/" not in dom.data["folders"]
     for k, v in source_state.items():
         assert dom.data[k] == v
 
@@ -261,16 +260,16 @@ def test_note_object(make_app, srcdir):
     dom = app.env.get_domain("mat")
     app.env.temp_data["docname"] = "index_first"
 
-    dom.note_object("some.Thing", "class")
-    assert dom.data["objects"]["some.Thing"] == ("index_first", "class")
+    dom.note_object("some/Thing.m", "class", "Thing")
+    assert dom.data["objects"]["some/Thing.m"] == ("index_first", "class", "Thing")
 
     warnings_before = app.warning.getvalue()
-    dom.note_object("some.Thing", "function")
+    dom.note_object("some/Thing.m", "function", "Thing")
     assert app.warning.getvalue() == warnings_before
 
-    dom.note_object("some.Thing", "class", location=("index_first", 3))
-    assert "duplicate object description of some.Thing" in app.warning.getvalue()
-    assert dom.data["objects"]["some.Thing"] == ("index_first", "class")
+    dom.note_object("some/Thing.m", "class", "Thing", location=("index_first", 3))
+    assert "duplicate object description of some/Thing.m" in app.warning.getvalue()
+    assert dom.data["objects"]["some/Thing.m"] == ("index_first", "class", "Thing")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,10 @@
 """Tests for centralized MATLAB naming helpers."""
 
 import json
+import ntpath
+import posixpath
+import random
+import unicodedata
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,17 +19,18 @@ from sphinxcontrib.mat_naming import (
     MatlabName,
     canonical_name,
     default_namelengthmax,
+    folder_namespace,
+    folder_of,
     form_matlab_name,
     has_matlab_behavior,
+    is_private_reference,
     is_valid_identifier,
-    make_module_target_id,
+    join_reference,
     make_target_id,
-    path_order_key,
-    registered_name_candidates,
-    resolve_found_first,
+    parse_reference,
+    path_reference,
     resolve_namelengthmax,
-    short_link_modname,
-    split_canonical,
+    split_display,
     validate_matlab_version,
     validate_namelengthmax,
 )
@@ -137,43 +142,32 @@ def test_identifier_validation_respects_namelengthmax():
     assert is_valid_identifier(name_64, 2048, allow_keywords=False)
 
 
-def test_target_id_is_stable_and_normalized():
-    assert make_target_id(" package.Class ") == "package.Class"
-    assert make_target_id("pkg.Class Name") == "pkg.Class-Name"
-
-
 def test_ensure_configuration_validates_namelengthmax():
-    env = SimpleNamespace(
-        matlab_short_links=False,
-        matlab_keep_package_prefix=True,
-        matlab_version="R2026a",
-        matlab_namelengthmax=64,
-    )
+    env = _config("R2026a", 64)
 
     with pytest.raises(ConfigError, match="matlab_namelengthmax"):
         matlab.ensure_configuration(None, env)
 
 
 def test_ensure_configuration_derives_namelengthmax_from_version():
-    env = SimpleNamespace(
-        matlab_short_links=False,
-        matlab_keep_package_prefix=True,
-        matlab_version="R2025a",
-        matlab_namelengthmax=None,
-    )
+    env = _config("R2025a", None)
     matlab.ensure_configuration(None, env)
     assert env.matlab_namelengthmax == 2048
 
 
 @pytest.mark.parametrize("version", ["R2024b", "2026a", "R2026c", "r2026a", None])
 def test_ensure_configuration_rejects_bad_matlab_version(version):
-    env = SimpleNamespace(
-        matlab_short_links=False,
-        matlab_keep_package_prefix=True,
-        matlab_version=version,
-        matlab_namelengthmax=None,
-    )
+    env = _config(version, None)
     with pytest.raises(ConfigError, match="matlab_version"):
+        matlab.ensure_configuration(None, env)
+
+
+@pytest.mark.parametrize("name", ["matlab_keep_package_prefix", "matlab_short_links"])
+@pytest.mark.parametrize("value", [True, False])
+def test_ensure_configuration_rejects_removed_options(name, value):
+    env = _config()
+    setattr(env, name, value)
+    with pytest.raises(ConfigError, match=f"{name} was removed"):
         matlab.ensure_configuration(None, env)
 
 
@@ -434,8 +428,10 @@ def test_form_matlab_name_both_length_limits(length):
 
 def _config(version="R2026a", namelengthmax=None):
     return SimpleNamespace(
-        matlab_short_links=False,
-        matlab_keep_package_prefix=True,
+        matlab_short_links=None,
+        matlab_keep_package_prefix=None,
+        matlab_src_dir=None,
+        matlab_src_code_project_root=None,
         matlab_version=version,
         matlab_namelengthmax=namelengthmax,
     )
@@ -475,50 +471,151 @@ def test_version_rules_table_drives_defaults(monkeypatch):
     assert DEFAULT_MATLAB_VERSION == "R2026a"
 
 
-# --- Target-ID contract -------------------------------------------------------
+# --- Path references and anchors ----------------------------------------------
 
 
-def test_target_id_is_identity_for_matlab_names():
-    # Existing anchors are the registered names, so they must not change.
-    names = {
-        canonical_name(n)
-        for r in _ORACLE_EDGE_CASES
-        if (n := form_matlab_name(r["folder"], r["name"], r["is_class"], 2048))
-    }
-    names |= {
-        "+pkg.@Cls.Cls",
-        "target.+package.ClassBar",
-        "pkg.Cls.method",
-        "naïve.Ünïcode",
-        "a" * 2048,
-    }
-    for name in names:
-        assert make_target_id(name) == name
-        assert make_module_target_id(name) == f"module-{name}"
+def _decode_target_id(anchor):
+    assert anchor.startswith("mat-")
+    body, out, i = anchor[4:], bytearray(), 0
+    while i < len(body):
+        if body[i] == "~":
+            out.append(int(body[i + 1 : i + 3], 16))
+            i += 3
+        else:
+            out.extend(body[i].encode("utf-8"))
+            i += 1
+    return out.decode("utf-8")
+
+
+def test_path_reference_files_folders_and_members(tmp_path):
+    (tmp_path / "target" / "+package").mkdir(parents=True)
+    cls = tmp_path / "target" / "+package" / "ClassBar.m"
+    cls.write_text("classdef ClassBar\nend\n")
+
+    assert path_reference(tmp_path, cls) == "target/+package/ClassBar.m"
+    assert (
+        path_reference(tmp_path, cls, "myMethod")
+        == "target/+package/ClassBar.m.myMethod"
+    )
+    assert path_reference(tmp_path, cls.parent) == "target/+package/"
+    assert path_reference(tmp_path, tmp_path) == "./"
+    # Folders are detected on disk or by a trailing separator.
+    assert path_reference(tmp_path, f"{tmp_path}/later/") == "later/"
+    assert path_reference(tmp_path, tmp_path / "later") == "later"
+    assert path_reference(tmp_path, tmp_path / "x", is_folder=True) == "x/"
+    with pytest.raises(ValueError, match="not below"):
+        path_reference(tmp_path / "target", tmp_path / "other.m")
+    with pytest.raises(ValueError, match="not a file"):
+        path_reference(tmp_path, tmp_path, is_folder=False)
+
+
+def test_path_reference_windows_separators():
+    root = r"C:\proj"
+    assert (
+        path_reference(root, r"C:\proj\src\+pkg\f.m", pathmod=ntpath)
+        == "src/+pkg/f.m"
+    )
+    assert (
+        path_reference(root, "C:/proj/src\\@Cls/Cls.m", "m", pathmod=ntpath)
+        == "src/@Cls/Cls.m.m"
+    )
+    assert path_reference(root, "C:\\proj\\src\\", pathmod=ntpath) == "src/"
+    # On POSIX a backslash is a folder-name character, not a separator.
+    assert (
+        path_reference("/proj", "/proj/a\\b/f.m", pathmod=posixpath) == "a\\b/f.m"
+    )
+
+
+def test_path_reference_is_nfc():
+    nfd = unicodedata.normalize("NFD", "café")
+    assert nfd != "café"
+    ref = path_reference("/proj", f"/proj/{nfd}/f.m", pathmod=posixpath)
+    assert ref == "café/f.m"
+    assert unicodedata.is_normalized("NFC", ref)
 
 
 @pytest.mark.parametrize(
-    ("name", "expected"),
+    ("reference", "expected"),
     [
-        (" package.Class ", "package.Class"),
-        ("pkg.Class Name", "pkg.Class-Name"),
-        ("my  folder.f", "my-folder.f"),
-        ("..f", "f"),
-        ("", ""),
-        (None, ""),
+        ("target/+package/ClassBar.m", ("target/+package/ClassBar.m", [])),
+        (
+            "target/+package/ClassBar.m.myMethod",
+            ("target/+package/ClassBar.m", ["myMethod"]),
+        ),
+        ("Cls.m.Inner.prop", ("Cls.m", ["Inner", "prop"])),
+        ("apps/My App.mlapp", ("apps/My App.mlapp", [])),
+        ("a.m/b/F.m.x", ("a.m/b/F.m", ["x"])),  # folder named like a file
+        ("target/+package/", ("target/+package/", [])),
+        ("./", ("./", [])),
+        ("target/x.mat", (None, [])),
+        ("package.ClassBar", (None, [])),
+        ("target/+package", (None, [])),
+        ("Cls.m.", (None, [])),
+        (".m", (None, [])),
     ],
 )
-def test_target_id_normalization(name, expected):
-    assert make_target_id(name) == expected
+def test_parse_reference(reference, expected):
+    assert parse_reference(reference) == expected
 
 
-def test_target_id_is_unique_for_distinct_matlab_names():
-    names = {
-        canonical_name(n)
-        for r in _ORACLE_EDGE_CASES
-        if (n := form_matlab_name(r["folder"], r["name"], r["is_class"], 2048))
-    }
-    assert len({make_target_id(n) for n in names}) == len(names)
+@pytest.mark.parametrize(
+    ("reference", "anchor"),
+    [
+        ("target/+package/ClassBar.m", "mat-target/+package/ClassBar.m"),
+        ("target/+package/", "mat-target/+package/"),
+        ("src/@Cls/Cls.m.myMethod", "mat-src/@Cls/Cls.m.myMethod"),
+        ("my folder/f.m", "mat-my~20folder/f.m"),
+        ("a#b%c~d/f.m", "mat-a~23b~25c~7Ed/f.m"),
+        ('q"<>\\^`{|}/f.m', "mat-q~22~3C~3E~5C~5E~60~7B~7C~7D/f.m"),
+        ("tab\there\x7f/f.m", "mat-tab~09here~7F/f.m"),
+        ("café/漢字.m", "mat-café/漢字.m"),
+        ("ok-._!$&'()*+,;=:@/f.m", "mat-ok-._!$&'()*+,;=:@/f.m"),
+    ],
+)
+def test_make_target_id_escapes(reference, anchor):
+    assert make_target_id(reference) == anchor
+    assert _decode_target_id(anchor) == reference
+
+
+def test_target_ids_are_unique():
+    # The escape is reversible, so distinct references never share an anchor.
+    tricky = [
+        "x/Cls.m",
+        "x/Cls.m/",  # a folder next to a file with the same name
+        "x/Cls.m.meth",
+        "x/Cls.m.meth/",
+        "my folder/f.m",
+        "my~20folder/f.m",
+        "my-folder/f.m",
+        "a~7E/f.m",
+        "a~/f.m",
+        "./",
+        "f.m",
+    ]
+    rng = random.Random(0)
+    alphabet = [chr(c) for c in range(0x00, 0x80)] + list("é 漢😀")
+    refs = set(tricky)
+    for _ in range(5000):
+        refs.add("".join(rng.choice(alphabet) for _ in range(rng.randint(1, 6))))
+    anchors = {make_target_id(ref) for ref in refs}
+    assert len(anchors) == len(refs)
+    assert all(_decode_target_id(make_target_id(ref)) == ref for ref in refs)
+    for anchor in anchors:
+        assert not any(c.isspace() and ord(c) < 0x80 for c in anchor)
+
+
+def test_folder_next_to_same_named_file(tmp_path):
+    (tmp_path / "x" / "Cls.m").mkdir(parents=True)
+    (tmp_path / "y.m").mkdir()
+    (tmp_path / "x" / "Cls.m" / "f.m").write_text("function f\nend\n")
+    folder = path_reference(tmp_path, tmp_path / "x" / "Cls.m")
+    nested = path_reference(tmp_path, tmp_path / "x" / "Cls.m" / "f.m")
+    assert folder == "x/Cls.m/"
+    assert nested == "x/Cls.m/f.m"
+    assert path_reference(tmp_path, tmp_path / "y.m") == "y.m/"
+    assert parse_reference(folder) == ("x/Cls.m/", [])
+    assert parse_reference(nested) == ("x/Cls.m/f.m", [])
+    assert make_target_id(folder) != make_target_id("x/Cls.m")
 
 
 def test_canonical_name_qualifies_class_folder_methods():
@@ -531,45 +628,44 @@ def test_canonical_name_qualifies_class_folder_methods():
     assert canonical_name(MatlabName("f", "", "f", "/t", True)) == "f"
 
 
-def test_registered_name_candidates():
-    assert registered_name_candidates("src.+pkg.@Cls.Cls") == [
-        "src.+pkg.@Cls.Cls",
-        "src.+pkg.Cls",
-        "src.pkg.@Cls.Cls",
-        "src.pkg.Cls",
-        "pkg.Cls",
-    ]
-    assert registered_name_candidates("f") == ["f"]
-    assert short_link_modname("target.+package.+sub") == "+package.+sub"
-    assert short_link_modname("target") == ""
-    assert short_link_modname(None) == ""
+@pytest.mark.parametrize(
+    ("reference", "folder", "private"),
+    [
+        ("f.m", "./", False),
+        ("./", "./", False),
+        ("target/+package/ClassBar.m.myMethod", "target/+package/", False),
+        ("target/+package/", "target/+package/", False),
+        ("src/private/helper.m", "src/private/", True),
+        ("src/private/", "src/private/", True),
+        ("a.m/f.m", "a.m/", False),
+        ("privateer/f.m", "privateer/", False),
+    ],
+)
+def test_folder_of_and_private(reference, folder, private):
+    assert folder_of(reference) == folder
+    assert is_private_reference(reference) is private
 
 
-def test_split_canonical_takes_longest_prefix():
-    names = {"pkg.Cls": "K1", "pkg": "K0"}
-    assert split_canonical("pkg.Cls.method", names) == ("K1", ["method"])
-    assert split_canonical("pkg.Cls", names) == ("K1", [])
-    assert split_canonical("other.f", names) == (None, [])
+def test_join_reference_and_split_display():
+    assert join_reference("./", "f.m") == "f.m"
+    assert join_reference("src/", "f.m") == "src/f.m"
+    assert split_display("package.ClassBar") == ("package.", "ClassBar")
+    assert split_display("ClassBar") == ("", "ClassBar")
+    assert split_display("+for/nm_kw.m") == ("+for/", "nm_kw.m")
+    assert split_display("target/+package/") == ("target/", "+package/")
+    assert split_display("./") == ("", "./")
 
 
-def test_found_first_resolution_follows_root_then_path_order():
-    roots = ["/r1", "/r2"]
-    files = [
-        ("/r2", "/r2", "shared", "r2-root"),
-        ("/r1", "/r1/b", "shared", "r1-b"),
-        ("/r1", "/r1/a/deep", "shared", "r1-a-deep"),
-        ("/r1", "/r1/a", "shared", "r1-a"),
-        ("/r1", "/r1/a", "other", "r1-other"),
-    ]
-    entries = sorted(
-        (path_order_key(roots.index(root), root, folder), canonical, value)
-        for root, folder, canonical, value in files
-    )
-    winners, shadowed = resolve_found_first((c, v) for _, c, v in entries)
-    assert winners == {"shared": "r1-a", "other": "r1-other"}
-    assert [(n, s) for n, s, _ in shadowed] == [
-        ("shared", "r1-a-deep"),
-        ("shared", "r1-b"),
-        ("shared", "r2-root"),
-    ]
-    assert all(w == "r1-a" for _, _, w in shadowed)
+@pytest.mark.parametrize(
+    ("folder", "expected"),
+    [
+        ("/r/+pkg", "pkg"),
+        ("/r/+pkg/+sub", "pkg.sub"),
+        ("/r/src", None),
+        ("/r/+for", None),  # keyword
+        ("/r/+pkg/+for", "pkg.for"),  # keywords only fail the first level
+        ("/r/@Cls/+pkg", None),  # below a class folder
+    ],
+)
+def test_folder_namespace(folder, expected):
+    assert folder_namespace(folder, 2048) == expected

@@ -32,9 +32,13 @@ from sphinxcontrib.mat_tree_sitter_parser import (
     MatScriptParser,
 )
 from .mat_naming import (
-    classfolder_class_name as _classfolder_class_name,
-    shortest_name as _shortest_name,
-    strip_package_prefix as _strip_package_prefix,
+    REGISTERED_EXTENSIONS,
+    ROOT_REFERENCE,
+    folder_of,
+    is_private_reference,
+    join_reference,
+    parse_reference,
+    path_reference,
 )
 
 logger = getLogger("matlab-domain")
@@ -113,18 +117,17 @@ MATLAB_METHOD_ATTRIBUTE_TYPES = {
     "TestTags": list,
 }
 
-# The parsed-source entity model (``entities_table`` + ``entities_name_map``) is
-# stored in ``env.domaindata['mat']`` and pickled with the environment. It is
-# rebuilt each build by ``analyze()``; unchanged files reuse their parsed
-# ``MatObject`` from ``parse_cache``. Tree-sitter objects are never pickled (see
-# ``MatObject.__reduce_ex__``). Access the current build's model through
-# ``_domain()``.
+# The parsed-source entity model is stored in ``env.domaindata['mat']`` and
+# pickled with the environment. It is rebuilt each build by ``analyze()``;
+# unchanged files reuse their parsed ``MatObject`` from ``parse_cache``.
+# Tree-sitter objects are never pickled (see ``MatObject.__reduce_ex__``).
+# Access the current build's model through ``_domain()``.
 #
-#   entities_table: full dotted path (relative to root) -> MatObject, plus added
-#     "short names" (e.g. ``target.+package.ClassBar`` -> ``package.ClassBar``).
-#   entities_name_map: names WITHOUT '+' package prefixes -> names WITH them; used
-#     only when ``matlab_auto_link`` and ``matlab_keep_package_prefix`` are set and
-#     a "see also" docstring section is encountered.
+#   entities_table: path reference -> MatObject, for every discovered file and
+#     folder (the project root is ``./``).
+#   matlab_names: MATLAB name -> path references of the files and namespace
+#     folders with that name (class-folder methods are reached through their
+#     class).
 
 
 class _DetachedEntityStore:
@@ -134,7 +137,7 @@ class _DetachedEntityStore:
 
     def __init__(self):
         self.entities_table = {}
-        self.entities_name_map = {}
+        self.data = {"matlab_names": {}}
 
 
 _detached_store = _DetachedEntityStore()
@@ -147,16 +150,6 @@ def _domain(env=None):
     if env is None:
         return _detached_store
     return env.get_domain("mat")
-
-
-def shortest_name(dotted_path):
-    # Backward-compatible wrapper around centralized naming helpers.
-    return _shortest_name(dotted_path)
-
-
-def classfolder_class_name(dotted_path):
-    # Backward-compatible wrapper around centralized naming helpers.
-    return _classfolder_class_name(dotted_path)
 
 
 def recursive_find_all(obj):
@@ -201,29 +194,119 @@ def recursive_log_debug(obj, indent=""):
             )
 
 
-def populate_entities_table(obj, path=""):
+def populate_entities_table(obj):
     # Recursively scan the hierarchy of entities and populate the domain's table.
     if not hasattr(obj, "entities") or obj.entities is None:
         return
 
     dom = _domain()
-    for n, o in obj.entities:
-        fullpath = path + "." + o.name
-        fullpath = fullpath.lstrip(".")
-        dom.entities_table[fullpath] = o
-        alias = strip_package_prefix(fullpath)
-        if alias not in dom.entities_name_map:
-            dom.entities_name_map[alias] = fullpath
+    for _, o in obj.entities:
+        dom.entities_table[o.ref] = o
         if isinstance(o, MatModule):
             if o.entities:
-                populate_entities_table(o, fullpath)
+                populate_entities_table(o)
 
 
-def try_get_module_entity_or_default(entity_name, env=None):
-    maybe_mod = _domain(env).entities_table.get(entity_name)
-    if isinstance(maybe_mod, dict):
-        return maybe_mod["mod"]
-    return maybe_mod
+def _member(entity, members):
+    obj = entity
+    for name in members:
+        if obj is None or isinstance(obj, MatModule):
+            return None
+        obj = obj.getter(name)
+    return obj
+
+
+def lookup_reference(dom, reference):
+    """Discovered object with the exact path reference, or None.
+
+    A folder may be given without its trailing ``/``.
+    """
+    file, members = parse_reference(reference)
+    if file is None:
+        return dom.entities_table.get(f"{reference}/")
+    return _member(dom.entities_table.get(file), members)
+
+
+def _canonical_reference(dom, reference):
+    file, _ = parse_reference(reference)
+    if file is None and f"{reference}/" in dom.entities_table:
+        return f"{reference}/"
+    return reference
+
+
+def _named(dom, name):
+    """``(reference, object, source entity)`` for a MATLAB name.
+
+    The longest known prefix of ``name`` is the file or folder; the rest are
+    members (``pkg.Cls.method``).
+    """
+    parts = name.split(".")
+    for i in range(len(parts), 0, -1):
+        refs = dom.data["matlab_names"].get(".".join(parts[:i]))
+        if refs:
+            rest = parts[i:]
+            found = []
+            for ref in refs:
+                entity = dom.entities_table.get(ref)
+                obj = _member(entity, rest)
+                if obj is not None:
+                    found.append((".".join([ref, *rest]), obj, entity))
+            return found
+    return []
+
+
+def is_source_object(obj):
+    """True for anything but a folder."""
+    return not isinstance(obj, MatModule)
+
+
+def find_source(dom, target, folder=None, accept=is_source_object):
+    """Resolve ``target`` to discovered objects (plan.md Section 2.3).
+
+    1. exact path reference; 2. relative to ``folder`` (a path below it, or a
+    MATLAB name visible from it, including its ``private/``); 3. a MATLAB name,
+    excluding private files. Only objects for which ``accept(obj)`` is true
+    count. Returns ``[(reference, object)]``: empty if nothing matches,
+    several if the MATLAB name is ambiguous.
+    """
+    target = target.strip()
+    if target == ".":
+        target = ROOT_REFERENCE
+    exact = [target]
+    if folder:
+        exact.append(join_reference(folder, target))
+    for ref in exact:
+        obj = lookup_reference(dom, ref)
+        if obj is not None and accept(obj):
+            return [(_canonical_reference(dom, ref), obj)]
+
+    named = [(r, o, e) for r, o, e in _named(dom, target) if accept(o)]
+    if folder:
+        local = [(r, o) for r, o, e in named if getattr(e, "scope", None) == folder]
+        if local:
+            return local
+    return [(r, o) for r, o, e in named if not getattr(e, "private", False)]
+
+
+def folder_reference(dom, target):
+    """Folder reference for a folder argument (path or namespace name)."""
+    target = target.strip()
+    if target in (".", ROOT_REFERENCE):
+        return ROOT_REFERENCE
+    found = find_source(dom, target, accept=lambda obj: isinstance(obj, MatModule))
+    if len(found) == 1:
+        return found[0][0]
+    return target if target.endswith("/") else f"{target}/"
+
+
+def display_name(dom, reference):
+    """MATLAB name of a reference, or the reference if it has none."""
+    file, members = parse_reference(reference)
+    entity = dom.entities_table.get(file if file is not None else reference)
+    base = getattr(entity, "matlab_name", None)
+    if base is None:
+        return reference
+    return ".".join([base, *members])
 
 
 def source_key(path):
@@ -245,14 +328,17 @@ def _source_type(obj):
     return "unknown"
 
 
-def _parse_cached(path, name, parse):
+def _parse_cached(path, ref, parse):
     """Run ``parse()`` unless the previous build parsed the same key.
 
     Records the result in the domain's ``index`` and ``parse_cache``.
     """
     dom = _domain()
-    if not hasattr(dom, "data"):  # detached (non-Sphinx) parsing
-        return parse()
+    if isinstance(dom, _DetachedEntityStore):
+        obj = parse()
+        if obj is not None:
+            obj.ref = ref
+        return obj
     key = source_key(path)
     obj = dom.previous_parse_cache.pop(key, None)
     if obj is None:
@@ -260,9 +346,10 @@ def _parse_cached(path, name, parse):
     else:
         logger.debug("[sphinxcontrib-matlabdomain] reusing parsed %s", path)
     if obj is not None:
+        obj.ref = ref
         dom.data["parse_cache"][key] = obj
         dom.data["index"][path] = {
-            "name": name,
+            "reference": ref,
             "type": _source_type(obj),
             "mtime": key[1],
             "size": key[2],
@@ -270,9 +357,24 @@ def _parse_cached(path, name, parse):
     return obj
 
 
+def project_root(config, srcdir):
+    """Absolute project root, or ``None`` if none is configured.
+
+    ``matlab_src_code_project_root`` wins over the deprecated
+    ``matlab_src_dir``; relative values are relative to ``srcdir`` (keeps
+    sphinx-multiversion working).
+    """
+    root = config.matlab_src_code_project_root
+    if root is None:
+        root = config.matlab_src_dir
+    if root is None:
+        return None
+    return os.path.normpath(os.path.join(srcdir, root))
+
+
 def analyze(app):
     # Using the "MatObject.matlabify" and "MatModule.safe_getmembers" the
-    # `matlab_src_dir` is recursively scanned for MATLAB objects only once.
+    # project root is recursively scanned for MATLAB objects only once.
     # All entities found are stored in the domain's `entities_table`.
 
     try:
@@ -281,7 +383,6 @@ def analyze(app):
         # unchanged files unless the config changed.
         dom = app.env.get_domain("mat")
         entities_table = dom.entities_table
-        entities_name_map = dom.entities_name_map
         parse_cache = dom.data["parse_cache"]
         if app.env.config_status == CONFIG_OK:
             dom.previous_parse_cache = dict(parse_cache)
@@ -289,21 +390,17 @@ def analyze(app):
             dom.previous_parse_cache = {}
         parse_cache.clear()
         dom.data["index"].clear()
-        dom.data["canonical_names"].clear()
+        dom.data["matlab_names"].clear()
         entities_table.clear()
-        entities_name_map.clear()
         MatModuleAnalyzer.cache.clear()
 
-        if app.env.config.matlab_src_dir is None:
+        basedir = project_root(app.env.config, app.env.srcdir)
+        if basedir is None:
             logger.debug(
-                "[sphinxcontrib-matlabdomain] matlab_src_dir is None, skipping parsing."
+                "[sphinxcontrib-matlabdomain] no project root, skipping parsing."
             )
             return
 
-        # Interpret `matlab_src_dir` relative to the sphinx source directory.
-        basedir = os.path.normpath(
-            os.path.join(app.env.srcdir, app.env.config.matlab_src_dir)
-        )
         MatObject.basedir = basedir  # set MatObject base directory
         MatObject.sphinx_env = app.env  # pass env to MatObject cls
         MatObject.sphinx_app = app  # pass app to MatObject cls
@@ -332,9 +429,9 @@ def analyze(app):
         recursive_log_debug(root)
 
         logger.debug("[sphinxcontrib-matlabdomain] Starting populate_entities_table")
+        entities_table[ROOT_REFERENCE] = root
         populate_entities_table(root)
         logger.debug("[sphinxcontrib-matlabdomain] Finished populate_entities_table")
-        entities_table["."] = root
         dom.previous_parse_cache = {}
     except Exception as e:
         import traceback
@@ -356,18 +453,13 @@ def analyze(app):
     #
     # ClassFolder (Class) with the method1 and method2 add to the ClassFolder Class.
 
-    def isClassFolderModule(name, entity):
-        if not isinstance(entity, MatModule):
-            return False
-
-        parts = name.split(".")
-        return parts[-1].startswith("@")
-
-    class_folder_modules = {
-        k: v for k, v in entities_table.items() if isClassFolderModule(k, v)
-    }
+    class_folder_modules = [
+        v
+        for v in entities_table.values()
+        if isinstance(v, MatModule) and v.name.startswith("@")
+    ]
     # For each Class Folder module
-    for cf_entity in class_folder_modules.values():
+    for cf_entity in class_folder_modules:
         # Bug fix: Check if cf_entity has entities and they're not None
         if not hasattr(cf_entity, "entities") or cf_entity.entities is None:
             continue
@@ -376,9 +468,13 @@ def analyze(app):
         class_entities = [e for e in cf_entity.entities if isinstance(e[1], MatClass)]
         func_entities = [e for e in cf_entity.entities if isinstance(e[1], MatFunction)]
 
-        if not class_entities:
+        if len(class_entities) > 1:
+            # Other classdef files in a class folder are not its class.
+            class_entities = [
+                e for e in class_entities if e[1].name == cf_entity.name[1:]
+            ]
+        if len(class_entities) != 1:
             continue
-        assert len(class_entities) == 1
         cls = class_entities[0][1]
         # Drop folder methods attached to a class reused from the parse cache.
         cls.methods = {
@@ -396,123 +492,74 @@ def analyze(app):
             func.from_class_folder = True
             cls.methods[func.name] = func
 
-    # Transform @ClassFolder names. Specifically
-    class_folder_names = {}
-    for name, entity in entities_table.items():
-        alt_name = classfolder_class_name(name)
-        if name != alt_name:
-            class_folder_names[alt_name] = entity
-    entities_table.update(class_folder_names)
-
-    # Find alternative names to entities
-    # target.+package.+sub.Class -> package.sub.Class
-    # folder.subfolder.Class -> Class
-    #
-    # NOTE: Does not yet work with class folders
-    short_names = {}
-    long_names = entities_table.keys()
-    for name, entity in entities_table.items():
-        short_name = shortest_name(name)
-        if (
-            short_name != name and not (short_name in long_names and name in long_names)
-        ) or (
-            short_name in long_names
-            and (entity.ref_role() == "func" or entity.ref_role() == "class")
-            and entities_table[short_name].ref_role() == "mod"
-        ):
-            # Only handle the below special case when overwriting entries in entities_table will not
-            # introduce conflicts
-            if short_name in entities_table:
-                # Special Case - ClassName/ClassName.m
-                existing_entity = entities_table[short_name]
-                short_names[short_name] = {
-                    entity.ref_role(): entity,
-                    existing_entity.ref_role(): existing_entity,
-                }
-            else:
-                short_names[short_name] = entity
-            entities_name_map.setdefault(short_name, short_name)
-
-    entities_table.update(short_names)
-
-    index_canonical_names(dom, app.env.config, [basedir])
+    name_sources(dom, app.env.config)
 
 
-def _root_index(path, roots):
-    for i, root in enumerate(roots):
-        if os.path.commonpath([root, path]) == root:
-            return i
-    return len(roots)
+def _scope(folder):
+    """Folder a MATLAB name in ``folder`` (a folder reference) is visible from.
+
+    The folder above its ``@class`` and ``+namespace`` folders; for
+    ``private/`` the folder holding it.
+    """
+    parts = [] if folder == ROOT_REFERENCE else folder.rstrip("/").split("/")
+    if parts and parts[-1] == "private" and not any(p[:1] == "@" for p in parts):
+        parts.pop()
+    else:
+        parts = parts[: next((i for i, p in enumerate(parts) if p[:1] == "@"), None)]
+        while parts and parts[-1][:1] == "+":
+            parts.pop()
+    return "/".join(parts) + "/" if parts else ROOT_REFERENCE
 
 
-def index_canonical_names(dom, config, roots):
-    """Name every indexed source file the MATLAB way (``form_matlab_name``).
+def name_sources(dom, config):
+    """Name every discovered file and folder the MATLAB way (``form_matlab_name``).
 
-    Sets ``canonical_name`` (``None`` if MATLAB cannot call the file) and
-    ``private`` on each ``index`` record. Public names, except class-folder
-    methods, go to ``canonical_names`` (name -> entity key), resolved
-    found-first over ``roots`` like the MATLAB path; shadowed files are logged.
-    A short-name alias in ``entities_table`` that equals a canonical name is
-    pointed at the found-first winner, so it no longer depends on listing order.
+    Sets ``matlab_name`` (``None`` if MATLAB cannot call it), ``private`` and
+    ``scope`` (see ``_scope``) on each entity and ``index`` record, and fills
+    ``matlab_names``. Files MATLAB cannot call, except below ``private/``, get
+    one ``mat.not_callable`` warning each.
     """
     version = config.matlab_version
     namelengthmax = mat_naming.resolve_namelengthmax(
         version, config.matlab_namelengthmax
     )
-    roots = [os.path.normpath(root) for root in roots]
-    entries = []
+    matlab_names = dom.data["matlab_names"]
     for path, record in dom.data["index"].items():
+        ref = record["reference"]
         folder, filename = os.path.split(path)
         name = mat_naming.form_matlab_name(
             folder, filename, record["type"] == "class", namelengthmax, version
         )
-        record["canonical_name"] = mat_naming.canonical_name(name) if name else None
-        record["private"] = bool(name and name.is_private)
+        matlab_name = mat_naming.canonical_name(name) if name else None
+        private = is_private_reference(ref)
+        scope = _scope(folder_of(ref)) if name is not None else None
+        record.update(matlab_name=matlab_name, private=private, scope=scope)
+        entity = dom.entities_table.get(ref)
+        if entity is not None:
+            entity.matlab_name, entity.private, entity.scope = matlab_name, private, scope
         if name is None:
-            logger.verbose(
-                "[sphinxcontrib-matlabdomain] %s is not callable in MATLAB %s; "
-                "it has no MATLAB name.",
-                path,
-                version,
-            )
+            if not private:
+                logger.warning(
+                    "[sphinxcontrib-matlabdomain] %s is not callable in MATLAB %s; "
+                    "it is documented by its path reference.",
+                    ref,
+                    version,
+                    type="mat",
+                    subtype="not_callable",
+                )
             continue
-        if name.is_private or record["canonical_name"] != name.pseudo_fullname:
+        if matlab_name == name.pseudo_fullname:
+            matlab_names.setdefault(matlab_name, []).append(ref)
+
+    for ref, entity in dom.entities_table.items():
+        if not isinstance(entity, MatModule):
             continue
-        root_index = _root_index(path, roots)
-        root = roots[root_index] if root_index < len(roots) else folder
-        order = mat_naming.path_order_key(root_index, root, name.parent_folder)
-        entries.append((order, path, record["canonical_name"], record["name"]))
-
-    entries.sort()
-    winners, shadowed = mat_naming.resolve_found_first(
-        (canonical, (path, key)) for _, path, canonical, key in entries
-    )
-    for canonical, (path, _), (winner_path, _) in shadowed:
-        logger.info(
-            "[sphinxcontrib-matlabdomain] %s in %s is shadowed by %s.",
-            canonical,
-            path,
-            winner_path,
-        )
-
-    canonical_names = dom.data["canonical_names"]
-    entities_table = dom.entities_table
-    for canonical, (_, key) in winners.items():
-        canonical_names[canonical] = key
-        winner = entities_table.get(key)
-        alias = entities_table.get(canonical)
-        if (
-            isinstance(alias, MatObject)
-            and isinstance(winner, MatObject)
-            and alias is not winner
-            and type(alias) is type(winner)
-        ):
-            entities_table[canonical] = winner
-
-
-def strip_package_prefix(varname):
-    """Remove the leading '+' prefix on package names"""
-    return _strip_package_prefix(varname)
+        namespace = mat_naming.folder_namespace(entity.path, namelengthmax, version)
+        entity.matlab_name = namespace
+        entity.private = is_private_reference(ref)
+        entity.scope = _scope(ref) if namespace is not None else None
+        if namespace is not None:
+            matlab_names.setdefault(namespace, []).append(ref)
 
 
 _TREE_SITTER_TYPES = (Node, Tree, Parser)
@@ -590,81 +637,67 @@ class MatObject(object):
         """
         Makes a MatObject.
 
-        :param objname: Name of object to matlabify without file extension.
+        :param objname: Path of the object below the project root
+            (:attr:`MatObject.basedir`) with ``/`` separators: a folder
+            (``"target/+package"``), a file (``"target/+package/ClassBar.m"``)
+            or a file without its extension (``.m`` is tried before
+            ``.mlapp``). ``""`` is the project root.
         :type objname: str
 
-        Assumes that object is contained in a folder described by a namespace
-        composed of modules and packages connected by dots, and that the top-
-        level module or package is in the Sphinx config value
-        ``matlab_src_dir`` which is stored locally as
-        :attr:`MatObject.basedir`. For example:
-        ``my_project.my_package.sub_pkg.MyClass`` represents either a folder
-        ``basedir/my_project/my_package/sub_pkg/MyClass`` or an mfile
-        ``basedir/my_project/my_package/sub_pkg/ClassExample.m``. If there is both a
-        folder and an mfile with the same name, the folder takes precedence
-        over the mfile.
+        Every object gets its path reference as ``ref``.
         """
         # no object name given
         logger.debug(f"[sphinxcontrib-matlabdomain] enter matlabify {objname=}.")
 
         if objname is None:
             return None
-        if objname == "":
-            path, name = os.path.split(MatObject.basedir)
-            package = ""
-            objname = name
+        rel = objname.strip("/")
+        if rel in ("", "."):
+            rel = ""
             fullpath = MatObject.basedir
+            name = os.path.basename(fullpath)
         else:
-            # matlab modules are really packages
-            objname = objname.lstrip(".")
-            package = objname  # for packages it's namespace of __init__.py
-            # convert namespace to path
-            objname = objname.replace(".", os.sep)  # objname may have dots
-            # separate path from file/folder name
-            path, name = os.path.split(objname)
+            parts = rel.split("/")
+            name = parts[-1]
+            fullpath = os.path.join(MatObject.basedir, *parts)
 
-            # make a full path out of basedir and objname
-            fullpath = os.path.join(MatObject.basedir, objname)  # objname fullpath
-
-        logger.debug(
-            f"[sphinxcontrib-matlabdomain] matlabify {package=}, {objname=}, {fullpath=}"
-        )
-        # package folders imported over mfile with same name
+        logger.debug(f"[sphinxcontrib-matlabdomain] matlabify {rel=}, {fullpath=}")
         if os.path.isdir(fullpath):
-            if package.startswith("_") or package.startswith("."):
+            if rel.startswith(("_", ".")):
                 return None
-            mod = try_get_module_entity_or_default(package)
-            if mod:
-                logger.debug(
-                    "[sphinxcontrib-matlabdomain] Module %s already loaded.", package
-                )
+            ref = path_reference(MatObject.basedir, fullpath, is_folder=True)
+            mod = _domain().entities_table.get(ref)
+            if isinstance(mod, MatModule):
+                logger.debug("[sphinxcontrib-matlabdomain] Module %s already loaded.", ref)
                 return mod
-            else:
-                logger.debug(
-                    f"[sphinxcontrib-matlabdomain] matlabify MatModule {package=}, {fullpath=}"
-                )
-                return MatModule(name, fullpath, package)  # import package
-        elif os.path.isfile(fullpath + ".m"):
-            mfile = fullpath + ".m"
             logger.debug(
-                f"[sphinxcontrib-matlabdomain] matlabify parse_mfile {package=}, {mfile=}"
+                f"[sphinxcontrib-matlabdomain] matlabify MatModule {ref=}, {fullpath=}"
             )
+            return MatModule(name, fullpath, ref)
+
+        stem, ext = os.path.splitext(name)
+        if ext not in REGISTERED_EXTENSIONS or not os.path.isfile(fullpath):
+            stem = name
+            ext = next(
+                (e for e in REGISTERED_EXTENSIONS if os.path.isfile(fullpath + e)), None
+            )
+            if ext is None:
+                return None
+            fullpath += ext
+        ref = path_reference(MatObject.basedir, fullpath, is_folder=False)
+        folder = folder_of(ref)
+        logger.debug(f"[sphinxcontrib-matlabdomain] matlabify parse {ref=}, {fullpath=}")
+        if ext == ".mlapp":
             return _parse_cached(
-                mfile,
-                package,
-                lambda: MatObject.parse_mfile(mfile, name, path, MatObject.encoding),
+                fullpath,
+                ref,
+                lambda: MatObject.parse_mlappfile(fullpath, stem, folder),
             )
-        elif os.path.isfile(fullpath + ".mlapp"):
-            mlappfile = fullpath + ".mlapp"
-            logger.debug(
-                f"[sphinxcontrib-matlabdomain] matlabify parse_mlappfile {package=}, {mlappfile=}"
-            )
-            return _parse_cached(
-                mlappfile,
-                package,
-                lambda: MatObject.parse_mlappfile(mlappfile, name, path),
-            )
-        return None
+        return _parse_cached(
+            fullpath,
+            ref,
+            lambda: MatObject.parse_mfile(fullpath, stem, folder, MatObject.encoding),
+        )
 
     @staticmethod
     def parse_mfile(mfile, name, path, encoding=None):
@@ -675,7 +708,7 @@ class MatObject(object):
         :type mfile: str
         :param name: Name of :class:`MatObject`.
         :type name: str
-        :param path: Path of module containing :class:`MatObject`.
+        :param path: Folder reference of the folder containing :class:`MatObject`.
         :type path: str
         :param encoding: Encoding of the Matlab file to load (default = utf-8)
         :type encoding: str
@@ -703,7 +736,7 @@ class MatObject(object):
             parser = Parser(ML_LANG)
         tree = parser.parse(code)
 
-        modname = path.replace(os.sep, ".")  # module name
+        modname = path  # folder reference
 
         # assume that functions and classes always start with a keyword
         def isFunction(tree):
@@ -748,7 +781,7 @@ class MatObject(object):
         :type mlappfile: str
         :param name: Name of :class:`MatApplication`.
         :type name: str
-        :param path: Path of module containing :class:`MatApplication`.
+        :param path: Folder reference of the folder containing :class:`MatApplication`.
         :type path: str
         :returns: :class:`MatApplication` representing the application.
         """
@@ -783,7 +816,7 @@ class MatObject(object):
             doc.append(metaDesc.text)
         docstring = "\n\n".join(doc)
 
-        modname = path.replace(os.sep, ".")  # module name
+        modname = path  # folder reference
 
         return MatApplication(name, modname, docstring)
 
@@ -801,14 +834,17 @@ class MatModule(MatObject):
     :type name: str
     :param path: Path of folder containing :class:`MatObject`.
     :type path: str
+    :param package: Folder reference (``target/+package/``; ``./`` for the root).
+    :type package: str
     """
 
     def __init__(self, name, path, package):
         super(MatModule, self).__init__(name)
         #: Path to module on disk, path to package's __init__.py
         self.path = path
-        #: name of package (full path from basedir to module)
+        #: folder reference
         self.package = package
+        self.ref = package
         #: entities found in the module: class, function, module (subpath and +package)
         self.entities = []
 
@@ -830,20 +866,19 @@ class MatModule(MatObject):
             # Do not visit directories starting with:
             # - "." (VCS and Editors)
             # - "_" (build/temp folders in Sphinx)
-            if os.path.isdir(path) and (key.startswith(".") or key.startswith("_")):
-                continue
+            if os.path.isdir(path):
+                if key.startswith(".") or key.startswith("_"):
+                    continue
+                name = key
             # Only visit MATLAB files
-            if os.path.isfile(path) and not (
-                key.endswith(".m") or key.endswith(".mlapp")
-            ):
+            elif os.path.splitext(key)[1] in REGISTERED_EXTENSIONS:
+                name = os.path.splitext(key)[0]
+            else:
                 continue
-            # trim file extension
-            if os.path.isfile(path):
-                key, _ = os.path.splitext(key)
-            if not results or key not in next(zip(*results)):
-                value = self.getter(key, None)
-                if value:
-                    results.append((key, value))
+            # A file and a folder with the same name are separate objects.
+            value = MatObject.matlabify(join_reference(self.ref, key))
+            if value:
+                results.append((name, value))
         self.entities = results
         # results.sort()
         return results
@@ -895,17 +930,19 @@ class MatModule(MatObject):
             )
             return None
         else:
-            # Search if we already has this entity
-            for entity_name, entity_content in self.entities:
-                if name == entity_name:
-                    logger.debug(
-                        "[sphinxcontrib-matlabdomain] mod %s already has entity %s.",
-                        self,
-                        name,
-                    )
-                    return entity_content
+            # Search if we already has this entity (a file before a same-named folder)
+            matches = [e for n, e in self.entities if n == name]
+            if matches:
+                logger.debug(
+                    "[sphinxcontrib-matlabdomain] mod %s already has entity %s.",
+                    self,
+                    name,
+                )
+                return next(
+                    (e for e in matches if not isinstance(e, MatModule)), matches[0]
+                )
             # If not - try to MATLABIFY it.
-            entity = MatObject.matlabify(f"{self.package}.{name}")
+            entity = MatObject.matlabify(join_reference(self.ref, name))
             if entity:
                 self.entities.append((name, entity))
                 logger.debug(
@@ -1002,30 +1039,14 @@ class MatClass(MatObject):
         """Returns role to use for references to this object (e.g. when generating auto-links)"""
         return "class"
 
-    def fullname(self, env):
-        """Returns full name for class object, for use as link target"""
-        modname = self.__module__
-        classname = self.name
-        if env.config.matlab_short_links:
-            # modname is only used for package names
-            # - "target.+package" => "package"
-            # - "target" => ""
-            parts = modname.split(".")
-            parts = [part for part in parts if part.startswith("+")]
-            modname = ".".join(parts)
+    def fullname(self, env):  # noqa: ARG002
+        """Returns the path reference of the class, for use as link target"""
+        return self.ref
 
-        if not env.config.matlab_keep_package_prefix:
-            modname = strip_package_prefix(modname)
-
-        return f"{modname}.{classname}".lstrip(".")
-
-    def link(self, env, name=None):
+    def link(self, env, name=None):  # noqa: ARG002
         """Returns link for class object"""
-        target = self.fullname(env)
-        if name:
-            return f":class:`{name} <{target}>`"
-        else:
-            return f":class:`{target}`"
+        title = name or getattr(self, "matlab_name", None) or self.ref
+        return f":class:`{title} <{self.ref}>`"
 
     @property
     def __module__(self):
@@ -1038,14 +1059,14 @@ class MatClass(MatObject):
     @property
     def __bases__(self):
         bases_ = dict.fromkeys(list(self.bases))  # make copy of bases
-        class_entity_table = {}
-        for name, entity in _domain().entities_table.items():
-            if isinstance(entity, MatClass) or "@" in name:
-                class_entity_table[name] = entity
-
+        dom = _domain()
+        folder = folder_of(self.ref) if getattr(self, "ref", None) else None
         for base in bases_:
-            if base in class_entity_table:
-                bases_[base] = class_entity_table[base]
+            found = find_source(
+                dom, base, folder, accept=lambda obj: isinstance(obj, MatClass)
+            )
+            if len(found) == 1:
+                bases_[base] = found[0][1]
 
         return bases_
 
@@ -1235,7 +1256,7 @@ class MatModuleAnalyzer(object):
             if isinstance(entry, MatcodeError):
                 raise entry
             return entry
-        mod = try_get_module_entity_or_default(modname)
+        mod = _domain().entities_table.get(modname)
         if isinstance(mod, MatModule):
             obj = cls.for_folder(mod.path, modname)
         elif isinstance(mod, MatClass):
@@ -1274,18 +1295,19 @@ class MatModuleAnalyzer(object):
         attr_visitor_collected = {}
         attr_visitor_tagorder = {}
         tagnumber = 0
-        mod = try_get_module_entity_or_default(self.modname)
+        mod = _domain().entities_table.get(self.modname)
+        # Documenter namespaces are ".".join(objpath); only root members match.
+        package = "" if mod.package == ROOT_REFERENCE else mod.package
 
         # walk package tree
         for k, v in mod.safe_getmembers():
             if hasattr(v, "docstring"):
-                attr_visitor_collected[mod.package, k] = v.docstring
+                attr_visitor_collected[package, k] = v.docstring
                 attr_visitor_tagorder[k] = tagnumber
                 tagnumber += 1
             if isinstance(v, MatClass):
                 for mk, mv in v.getter("__dict__").items():
-                    namespace = f"{mod.package}.{k}"
-                    namespace = namespace.lstrip(".")
+                    namespace = f"{package}{k}"
                     tagname = "%s.%s" % (k, mk)
                     tagname = tagname.lstrip(".")
                     attr_visitor_collected[namespace, mk] = mv.docstring

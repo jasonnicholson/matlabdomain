@@ -6,7 +6,7 @@ In this directory we test features used in the NUMAD project.
 Table of contents
 =================
 
-.. automodule:: target
+.. autofolder:: target
 
 .. toctree::
    :maxdepth: 2

@@ -1,2 +1,2 @@
-.. automodule:: src
+.. autofolder:: src
    :members:

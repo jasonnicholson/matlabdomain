@@ -1,8 +1,5 @@
-import os
-
 extensions = ["sphinx.ext.autodoc", "sphinxcontrib.matlab"]
 master_doc = "contents"
-matlab_src_dir = os.path.abspath(".")
-matlab_keep_package_prefix = True
+matlab_src_code_project_root = "."
 primary_domain = "mat"
 nitpicky = True

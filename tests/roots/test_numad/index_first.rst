@@ -1,10 +1,10 @@
 First Class
 ============
 
-.. autoclass:: target.FirstClass
-	:members:
-	:exclude-members:
-	:no-undoc-members:
+.. autoclass:: target/FirstClass.m
+        :members:
+        :exclude-members:
+        :no-undoc-members:
 
-.. autoattribute:: target.FirstClass.a
-.. autoattribute:: target.FirstClass.b
+.. autoattribute:: FirstClass.a
+.. autoattribute:: target/FirstClass.m.b

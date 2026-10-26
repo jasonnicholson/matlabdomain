@@ -9,7 +9,6 @@ The MATLAB domain.
 
 import re
 
-from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from sphinx import addnodes
 from sphinx.errors import ConfigError
@@ -27,11 +26,11 @@ from . import mat_documenters as doc
 logger = getLogger("matlab-domain")
 
 
-# REs for MATLAB signatures
+# REs for MATLAB signatures: a MATLAB name or path reference, then optional
+# arguments and return annotation.
 mat_sig_re = re.compile(
-    r"""^ ([+@]?[+@\w.]*\.)?            # class name(s)
-          ([+@]?\w+)  \s*               # thing name
-          (?: \((.*)\)                  # optional: arguments
+    r"""^ (.+?) \s*                     # name
+          (?: \(([^()]*)\)              # optional: arguments
            (?:\s* -> \s* (.*))?         #           return annotation
           )? $                          # and nothing more
           """,
@@ -91,8 +90,9 @@ class MatObject(ObjectDescription):
 
     option_spec = {
         "noindex": directives.flag,
-        "module": directives.unchanged,
         "annotation": directives.unchanged,
+        # Path reference of the object (written by the auto directives).
+        "reference": directives.unchanged,
     }
 
     doc_field_types = [
@@ -155,75 +155,48 @@ class MatObject(ObjectDescription):
     def handle_signature(self, sig, signode):
         """Transform a MATLAB signature into RST nodes.
 
-        Return (fully qualified name of the thing, classname if any).
+        Return (path reference, display name). The display name is the
+        MATLAB name (or the path reference of a file MATLAB cannot call).
 
-        If inside a class, the current class name is handled intelligently:
-        * it is stripped from the displayed name if present
-        * it is added to the full name (return value) if not present
+        Inside a class, the class name is stripped from the displayed name
+        and the member is registered below the class reference.
         """
         m = mat_sig_re.match(sig)
         if m is None:
             raise ValueError
-        name_prefix, name, arglist, retann = m.groups()
+        name, arglist, retann = m.groups()
 
-        # determine module and class name (if applicable), as well as full name
-        modname = self.options.get("module", self.env.temp_data.get("mat:module"))
-
-        if not self.env.config.matlab_keep_package_prefix:
-            modname = mat_naming.strip_package_prefix(modname)
-            name_prefix = mat_naming.strip_package_prefix(name_prefix)
-            name = mat_naming.strip_package_prefix(name)
-
-        classname = self.env.temp_data.get("mat:class")
-        if classname:
-            add_module = False
-            if name_prefix and name_prefix.startswith(classname):
-                fullname = name_prefix + name
-                # class name is given again in the signature
-                name_prefix = name_prefix[len(classname) :].lstrip(".")
-            elif name_prefix:
-                # class name is given in the signature, but different
-                # (shouldn't happen)
-                fullname = f"{classname}.{name_prefix}{name}"
-            else:
-                # class name is not given in the signature
-                fullname = f"{classname}.{name}"
+        cls = self.env.temp_data.get("mat:class")
+        reference = self.options.get("reference")
+        if cls:
+            cls_ref, cls_display = cls
+            if name.startswith(f"{cls_display}."):
+                name = name[len(cls_display) + 1 :]
+            ref = reference or f"{cls_ref}.{name}"
+            display = f"{cls_display}.{name}"
+            prefix, shown = mat_naming.split_display(name)
         else:
-            add_module = True
-            if name_prefix:
-                classname = name_prefix.rstrip(".")
-                fullname = name_prefix + name
+            if reference:
+                ref, display = reference, name
             else:
-                classname = ""
-                fullname = name
+                ref, display = self._source_reference(name)
+            prefix, shown = mat_naming.split_display(display)
+            if not self.env.config.add_module_names:
+                prefix = ""
 
-        signode["module"] = modname
-        signode["class"] = classname
-        signode["fullname"] = fullname
+        signode["module"] = mat_naming.folder_of(ref)
+        signode["class"] = cls[1] if cls else ""
+        signode["fullname"] = display
 
         if sig_prefix := self.get_signature_prefix():
             signode += addnodes.desc_annotation(sig_prefix, sig_prefix)
 
-        if name_prefix:
-            signode += addnodes.desc_addname(name_prefix, name_prefix)
-        elif add_module and self.env.config.add_module_names:
-            modname = self.options.get("module", self.env.temp_data.get("mat:module"))
-
-            if self.env.config.matlab_short_links:
-                modname = mat_naming.short_link_modname(modname)
-
-            # Consider adding the module name, except for "." and "exceptions"
-            # - This avoids the ".." for root entities.
-            if modname and (modname not in (".", "exceptions")):
-                if not self.env.config.matlab_keep_package_prefix:
-                    modname = mat_naming.strip_package_prefix(modname)
-
-                nodetext = f"{modname}."
-                signode += addnodes.desc_addname(nodetext, nodetext)
+        if prefix:
+            signode += addnodes.desc_addname(prefix, prefix)
 
         anno = self.options.get("annotation")
 
-        signode += addnodes.desc_name(name, name)
+        signode += addnodes.desc_name(shown, shown)
         if not arglist:
             if self.needs_arglist():
                 # for callables, add an empty parameter list
@@ -232,16 +205,26 @@ class MatObject(ObjectDescription):
                 signode += addnodes.desc_returns(retann, retann)
             if anno:
                 signode += addnodes.desc_annotation(f" {anno}", f" {anno}")
-            return fullname, name_prefix
+            return ref, display
 
         _pseudo_parse_arglist(signode, arglist)
         if retann:
             signode += addnodes.desc_returns(retann, retann)
         if anno:
             signode += addnodes.desc_annotation(f" {anno}", f" {anno}")
-        return fullname, name_prefix
+        return ref, display
 
-    def get_index_text(self, modname, name):
+    def _source_reference(self, name):
+        # A directive written by hand: use the source file it names, if any.
+        dom = self.env.get_domain("mat")
+        folder = self.env.temp_data.get("mat:folder")
+        found = mat_types.find_source(dom, name, folder)
+        if len(found) == 1:
+            ref = found[0][0]
+            return ref, mat_types.display_name(dom, ref)
+        return (mat_naming.join_reference(folder, name) if folder else name), name
+
+    def get_index_text(self, folder, name_cls):
         """Return the text for the index entry of the object."""
         raise NotImplementedError("must be implemented in subclasses")
 
@@ -250,75 +233,62 @@ class MatObject(ObjectDescription):
         return isinstance(node, addnodes.desc_signature) and fullname in node["names"]
 
     def add_target_and_index(self, name_cls, sig, signode):  # noqa: ARG002 - required by Sphinx API
-        modname = self.options.get("module", self.env.temp_data.get("mat:module"))
-
-        if self.env.config.matlab_short_links and name_cls[0] != modname:
-            modname = mat_naming.short_link_modname(modname)
-
-        fullname = ((modname and f"{modname}.") or "") + name_cls[0]
-        fullname = fullname.lstrip(".")
-
-        if not self.env.config.matlab_keep_package_prefix:
-            modname_out = mat_naming.strip_package_prefix(modname)
-            fullname_out = ((modname_out and f"{modname_out}.") or "") + name_cls[0]
-            fullname_out = fullname_out.lstrip(".")
-        else:
-            modname_out, fullname_out = modname, fullname
-
-        target_id = mat_naming.make_target_id(fullname_out)
+        ref, display = name_cls
+        target_id = mat_naming.make_target_id(ref)
 
         # note target
         if target_id not in self.state.document.ids:
-            signode["names"].append(fullname_out)
+            signode["names"].append(ref)
             signode["ids"].append(target_id)
             signode["first"] = not self.names
             self.state.document.note_explicit_target(signode)
             self.env.get_domain("mat").note_object(
-                fullname_out, self.objtype, location=(self.env.docname, self.lineno)
+                ref, self.objtype, display, location=(self.env.docname, self.lineno)
             )
-        elif not self._is_same_object(self.state.document.ids[target_id], fullname_out):
+        elif not self._is_same_object(self.state.document.ids[target_id], ref):
             logger.warning(
                 "[sphinxcontrib-matlabdomain] %s and %s share the target id %r; "
                 "%s is not linkable",
-                fullname_out,
+                ref,
                 ", ".join(self.state.document.ids[target_id]["names"]) or "?",
                 target_id,
-                fullname_out,
+                ref,
                 location=(self.env.docname, self.lineno),
             )
 
-        if indextext := self.get_index_text(modname_out, name_cls):
+        if indextext := self.get_index_text(mat_naming.folder_of(ref), name_cls):
             entry = ("single", indextext, target_id, "", None)
             self.indexnode["entries"].append(entry)
 
     def before_content(self):
         # needed for automatic qualification of members (reset in subclasses)
         self.clsname_set = False
+        # Cross-references in the content resolve relative to the object's folder.
+        self.previous_objfolder = self.env.temp_data.get("mat:objfolder")
+        if self.names:
+            self.env.temp_data["mat:objfolder"] = mat_naming.folder_of(
+                self.names[0][0]
+            )
 
     def after_content(self):
         if self.clsname_set:
             self.env.temp_data["mat:class"] = None
+        self.env.temp_data["mat:objfolder"] = self.previous_objfolder
 
 
 class MatModulelevel(MatObject):
-    """Description of an object on module level (functions, data, application)."""
+    """Description of an object on folder level (functions, data, application)."""
 
     def needs_arglist(self):
         return self.objtype == "function"
 
-    def get_index_text(self, modname, name_cls):
+    def get_index_text(self, folder, name_cls):
         if self.objtype == "function":
-            if not modname:
-                return translation("%s() (built-in function)") % name_cls[0]
-            return translation("%s() (in module %s)") % (name_cls[0], modname)
+            return translation("%s() (function in %s)") % (name_cls[1], folder)
         elif self.objtype == "data":
-            if not modname:
-                return translation("%s (built-in variable)") % name_cls[0]
-            return translation("%s (in module %s)") % (name_cls[0], modname)
+            return translation("%s (data in %s)") % (name_cls[1], folder)
         elif self.objtype == "application":
-            if not modname:
-                return translation("%s (built-in application)") % name_cls[0]
-            return translation("%s (in module %s)") % (name_cls[0], modname)
+            return translation("%s (application in %s)") % (name_cls[1], folder)
         else:
             return ""
 
@@ -328,7 +298,7 @@ class MatClasslike(MatObject):
 
     def _object_hierarchy_parts(self, sig):
         """Return a tuple of strings, one entry for each part of the object's \
-           hierarchy (e.g. ``('module', 'submodule', 'Class', 'method')``).
+           hierarchy (e.g. ``('package', 'Class')``).
 
         The returned tuple is used to properly nest children within parents in the
         table of contents, and can also be used within the
@@ -336,31 +306,27 @@ class MatClasslike(MatObject):
 
         This method must not be used without table of contents generation.
         """
-        parts = sig.attributes.get("module").split(".")
-        parts.append(sig.attributes.get("fullname"))
-        return tuple(parts)
+        return tuple(sig.attributes.get("fullname").split("."))
 
     def _toc_entry_name(self, sig):
         # TODO respecting the configuration setting ``toc_object_entries_show_parents``
-        return sig.attributes.get("fullname")
+        return mat_naming.split_display(sig.attributes.get("fullname"))[1]
 
     def get_signature_prefix(self):
         return f"{self.objtype} "
 
-    def get_index_text(self, modname, name_cls):
+    def get_index_text(self, folder, name_cls):
         if self.objtype == "class":
-            if not modname:
-                return translation("%s (built-in class)") % name_cls[0]
-            return translation("%s (class in %s)") % (name_cls[0], modname)
+            return translation("%s (class in %s)") % (name_cls[1], folder)
         elif self.objtype == "exception":
-            return name_cls[0]
+            return name_cls[1]
         else:
             return ""
 
     def before_content(self):
         MatObject.before_content(self)
         if self.names:
-            self.env.temp_data["mat:class"] = self.names[0][0]
+            self.env.temp_data["mat:class"] = self.names[0]
             self.clsname_set = True
 
 
@@ -377,78 +343,29 @@ class MatClassmember(MatObject):
             return "classmethod "
         return ""
 
-    def get_index_text(self, modname, name_cls):
-        name, _cls = name_cls
-        add_modules = self.env.config.add_module_names
-        if self.objtype == "method":
-            try:
-                clsname, methname = name.rsplit(".", 1)
-            except ValueError:
-                if modname:
-                    return translation("%s() (in module %s)") % (name, modname)
-                else:
-                    return f"{name}()"
-            if modname and add_modules:
-                return translation("%s() (%s.%s method)") % (methname, modname, clsname)
-            else:
-                return translation("%s() (%s method)") % (methname, clsname)
-        elif self.objtype == "staticmethod":
-            try:
-                clsname, methname = name.rsplit(".", 1)
-            except ValueError:
-                if modname:
-                    return translation("%s() (in module %s)") % (name, modname)
-                else:
-                    return f"{name}()"
-            if modname and add_modules:
-                return translation("%s() (%s.%s static method)") % (
-                    methname,
-                    modname,
-                    clsname,
-                )
-            else:
-                return translation("%s() (%s static method)") % (methname, clsname)
-        elif self.objtype == "classmethod":
-            try:
-                clsname, methname = name.rsplit(".", 1)
-            except ValueError:
-                if modname:
-                    return translation("%s() (in module %s)") % (name, modname)
-                else:
-                    return f"{name}()"
-            if modname:
-                return translation("%s() (%s.%s class method)") % (
-                    methname,
-                    modname,
-                    clsname,
-                )
-            else:
-                return translation("%s() (%s class method)") % (methname, clsname)
-        elif self.objtype == "attribute":
-            try:
-                clsname, attrname = name.rsplit(".", 1)
-            except ValueError:
-                if modname:
-                    return translation("%s (in module %s)") % (name, modname)
-                else:
-                    return name
-            if modname and add_modules:
-                return translation("%s (%s.%s attribute)") % (
-                    attrname,
-                    modname,
-                    clsname,
-                )
-            else:
-                return translation("%s (%s attribute)") % (attrname, clsname)
-        else:
+    def get_index_text(self, folder, name_cls):  # noqa: ARG002
+        name = name_cls[1]
+        kind = {
+            "method": translation("%s() (%s method)"),
+            "staticmethod": translation("%s() (%s static method)"),
+            "classmethod": translation("%s() (%s class method)"),
+            "attribute": translation("%s (%s attribute)"),
+        }.get(self.objtype)
+        if kind is None:
             return ""
+        clsname, _, member = name.rpartition(".")
+        if not clsname:
+            return f"{name}()" if self.objtype.endswith("method") else name
+        return kind % (member, clsname)
 
     def before_content(self):
         MatObject.before_content(self)
-        lastname = self.names and self.names[-1][1]
-        if lastname and not self.env.temp_data.get("mat:class"):
-            self.env.temp_data["mat:class"] = lastname.strip(".")
-            self.clsname_set = True
+        if self.names and not self.env.temp_data.get("mat:class"):
+            ref, display = self.names[-1]
+            if "." in display:
+                cls = (ref.rpartition(".")[0], display.rpartition(".")[0])
+                self.env.temp_data["mat:class"] = cls
+                self.clsname_set = True
 
 
 class MatDecoratorMixin:
@@ -480,13 +397,14 @@ class MatDecoratorMethod(MatDecoratorMixin, MatClassmember):
         return MatClassmember.run(self)
 
 
-class MatModule(Directive):
-    """Directive to mark description of a new module."""
+class MatFolder(MatObject):
+    """Description of a folder.
 
-    has_content = False
-    required_arguments = 1
-    optional_arguments = 0
-    final_argument_whitespace = False
+    A valid ``+`` folder shows ``namespace <MATLAB name>``; any other folder
+    shows ``folder <path reference>``. ``@Class`` folders are documented
+    through their class. Sets the current folder like ``mat:currentfolder``.
+    """
+
     option_spec = {
         "platform": lambda x: x,
         "synopsis": lambda x: x,
@@ -494,167 +412,167 @@ class MatModule(Directive):
         "deprecated": directives.flag,
     }
 
-    def run(self):
-        env = self.state.document.settings.env
-        modname = self.arguments[0].strip()
-
-        if not env.config.matlab_keep_package_prefix:
-            modname_out = mat_naming.strip_package_prefix(modname)
-        else:
-            modname_out = modname
-
-        noindex = "noindex" in self.options
-        env.temp_data["mat:module"] = modname
-        ret = []
-        if not noindex:
-            env.domaindata["mat"]["modules"][modname] = (
-                env.docname,
-                self.options.get("synopsis", ""),
-                self.options.get("platform", ""),
-                "deprecated" in self.options,
+    def handle_signature(self, sig, signode):
+        dom = self.env.get_domain("mat")
+        ref = mat_types.folder_reference(dom, sig)
+        if ref.rstrip("/").rpartition("/")[2].startswith("@"):
+            logger.warning(
+                "[sphinxcontrib-matlabdomain] %s is a class folder; "
+                "document its class instead",
+                ref,
+                location=(self.env.docname, self.lineno),
             )
-            # make a duplicate entry in 'objects' to facilitate searching for
-            # the module in MATLABDomain.find_obj()
-            env.get_domain("mat").note_object(modname, "module")
-            target_id = mat_naming.make_module_target_id(modname)
-            targetnode = nodes.target("", "", ids=[target_id], ismod=True)
-            self.state.document.note_explicit_target(targetnode)
-            # the platform and synopsis aren't printed; in fact, they are only
-            # used in the modindex currently
-            ret.append(targetnode)
-            indextext = translation("%s (module)") % modname_out
-            entry = "single", indextext, target_id, "", None
-            inode = addnodes.index(entries=[entry])
-            ret.append(inode)
-        return ret
+            raise ValueError
+        entity = dom.entities_table.get(ref)
+        if entity is not None:
+            namespace = getattr(entity, "matlab_name", None)
+        elif ref != mat_naming.ROOT_REFERENCE:
+            namespace = mat_naming.folder_namespace(
+                ref.rstrip("/"),
+                self.env.config.matlab_namelengthmax,
+                self.env.config.matlab_version,
+            )
+        else:
+            namespace = None
+        kind, display = ("namespace", namespace) if namespace else ("folder", ref)
+
+        signode["module"] = ref
+        signode["class"] = ""
+        signode["fullname"] = display
+        signode += addnodes.desc_annotation(f"{kind} ", f"{kind} ")
+        signode += addnodes.desc_name(display, display)
+        return ref, display
+
+    def get_index_text(self, folder, name_cls):  # noqa: ARG002
+        ref, display = name_cls
+        if display == ref:
+            return translation("%s (folder)") % display
+        return translation("%s (namespace)") % display
+
+    def add_target_and_index(self, name_cls, sig, signode):  # noqa: ARG002 - required by Sphinx API
+        ref, display = name_cls
+        target_id = mat_naming.make_target_id(ref)
+        if target_id not in self.state.document.ids:
+            signode["names"].append(ref)
+            signode["ids"].append(target_id)
+            signode["first"] = not self.names
+            self.state.document.note_explicit_target(signode)
+        # Like the former module directive, a folder may be described on
+        # several pages without a duplicate warning; the last one wins.
+        dom = self.env.get_domain("mat")
+        dom.note_object(ref, self.objtype, display)
+        dom.data["folders"][ref] = (
+            self.env.docname,
+            self.options.get("synopsis", ""),
+            self.options.get("platform", ""),
+            "deprecated" in self.options,
+        )
+        entry = ("single", self.get_index_text(ref, name_cls), target_id, "", None)
+        self.indexnode["entries"].append(entry)
+
+    def run(self):
+        result = super().run()
+        if self.names:
+            folder = self.names[0][0]
+        else:
+            folder = mat_types.folder_reference(
+                self.env.get_domain("mat"), self.arguments[0]
+            )
+        self.env.temp_data["mat:folder"] = folder
+        return result
 
 
-class MatCurrentModule(Directive):
-    """Tell Sphinx that we're documenting \
-       stuff in module foo, but links to module foo won't lead here.
+class MatCurrentFolder(Directive):
+    """Set the current folder for relative references without documenting it.
 
+    ``None`` clears it; ``.`` is the project root.
     """
 
     has_content = False
     required_arguments = 1
     optional_arguments = 0
-    final_argument_whitespace = False
+    final_argument_whitespace = True
     option_spec = {}
 
     def run(self):
         env = self.state.document.settings.env
-        modname = self.arguments[0].strip()
-        env.temp_data["mat:module"] = None if modname == "None" else modname
+        folder = self.arguments[0].strip()
+        env.temp_data["mat:folder"] = (
+            None
+            if folder == "None"
+            else mat_types.folder_reference(env.get_domain("mat"), folder)
+        )
         return []
+
+
+def _short_title(title):
+    # Last part of a MATLAB name or path reference (``~`` in a role).
+    parens = "()" if title.endswith("()") else ""
+    title = title.removesuffix(parens)
+    file, members = mat_naming.parse_reference(title)
+    if members:
+        title = members[-1]
+    elif file is not None:
+        title = file.rstrip("/").rpartition("/")[2] or file
+    else:
+        title = title.rpartition(".")[2]
+    return title + parens
 
 
 class MatXRefRole(XRefRole):
     def process_link(self, env, refnode, has_explicit_title, title, target):
-        refnode["mat:module"] = env.temp_data.get("mat:module")
-        refnode["mat:class"] = env.temp_data.get("mat:class")
+        refnode["mat:folder"] = env.temp_data.get("mat:objfolder") or env.temp_data.get(
+            "mat:folder"
+        )
+        cls = env.temp_data.get("mat:class")
+        refnode["mat:class"] = cls[0] if cls else None
+        # A leading dot (except in the root folder "." or "./") searches by
+        # suffix.
+        specific = target[:1] == "." and target != "." and target[:2] != "./"
         if not has_explicit_title:
-            title = title.lstrip(".")  # only has a meaning for the target
+            if title != "." and not title.startswith("./"):
+                title = title.lstrip(".")  # only has a meaning for the target
             target = target.lstrip("~")  # only has a meaning for the title
-            # if the first character is a tilde, don't display the module/class
-            # parts of the contents
+            # if the first character is a tilde, only display the last part
             if title[:1] == "~":
-                title = title[1:]
-                dot = title.rfind(".")
-                if dot != -1:
-                    title = title[dot + 1 :]
+                title = _short_title(title[1:])
 
-            if not env.config.matlab_keep_package_prefix:
-                title = mat_naming.strip_package_prefix(title)
-
-        # if the first character is a dot, search more specific namespaces first
-        # else search builtins first
-        if target[:1] == ".":
+        if specific:
             target = target[1:]
             refnode["refspecific"] = True
         return title, target
 
 
-class MATLABModuleIndex(Index):
-    """Index subclass to provide the MATLAB module index."""
+class MATLABFolderIndex(Index):
+    """Index subclass to provide the MATLAB folder index."""
 
-    name = "modindex"
-    localname = translation("MATLAB Module Index")
-    shortname = translation("matlab index")
+    name = "folderindex"
+    localname = translation("MATLAB Folder Index")
+    shortname = translation("folder index")
 
     def generate(self, docnames=None):
         content = {}
-        # list of prefixes to ignore
-        ignores = self.domain.env.config["modindex_common_prefix"]
-        ignores = sorted(ignores, key=len, reverse=True)
-        # list of all modules, sorted by module name
-        modules = sorted(
-            iter(self.domain.data["modules"].items()), key=lambda x: x[0].lower()
+        objects = self.domain.data["objects"]
+        folders = sorted(
+            self.domain.data["folders"].items(), key=lambda x: x[0].lower()
         )
-        # sort out collapsible modules
-        prev_modname = ""
-        num_toplevels = 0
-        for modname, (docname, synopsis, platforms, deprecated) in modules:
+        for ref, (docname, synopsis, platforms, deprecated) in folders:
             if docnames and docname not in docnames:
                 continue
-
-            for ignore in ignores:
-                if modname.startswith(ignore):
-                    modname = modname[len(ignore) :]
-                    stripped = ignore
-                    break
-            else:
-                stripped = ""
-
-            # we stripped the whole module name?
-            if not modname:
-                modname, stripped = stripped, ""
-
-            # Create nice mod-name
-            if not self.domain.env.config.matlab_keep_package_prefix:
-                modname_out = mat_naming.strip_package_prefix(modname)
-            else:
-                modname_out = modname
-
-            entries = content.setdefault(modname_out[0].lower(), [])
-
-            package = modname.split(".")[0]
-            if package != modname:
-                # it's a submodule
-                if prev_modname == package:
-                    # first submodule - make parent a group head
-                    if entries:
-                        entries[-1][1] = 1
-                elif not prev_modname.startswith(package):
-                    # submodule without parent in list, add dummy entry
-                    entries.append([stripped + package, 1, "", "", "", "", ""])
-                subtype = 2
-            else:
-                num_toplevels += 1
-                subtype = 0
-
+            display = objects.get(ref, (docname, "folder", ref))[2]
             qualifier = (deprecated and translation("Deprecated")) or ""
-            entries.append(
+            content.setdefault(display[0].lower(), []).append(
                 [
-                    stripped + modname_out,
-                    subtype,
+                    display,
+                    0,
                     docname,
-                    mat_naming.make_module_target_id(stripped + modname),
+                    mat_naming.make_target_id(ref),
                     platforms,
                     qualifier,
                     synopsis,
                 ]
             )
-            prev_modname = modname
-
-        # apply heuristics when to collapse modindex at page load:
-        # only collapse if number of toplevel modules is larger than
-        # number of submodules
-        collapse = len(modules) - num_toplevels < num_toplevels
-
-        # sort by first letter
-        content = sorted(content.items())
-
-        return content, collapse
+        return sorted(content.items()), False
 
 
 class MATLABDomain(Domain):
@@ -671,7 +589,7 @@ class MATLABDomain(Domain):
         "classmethod": ObjType(translation("class method"), "meth", "obj"),
         "staticmethod": ObjType(translation("static method"), "meth", "obj"),
         "attribute": ObjType(translation("attribute"), "attr", "obj"),
-        "module": ObjType(translation("module"), "mod", "obj"),
+        "folder": ObjType(translation("folder"), "folder", "obj"),
         "script": ObjType(translation("script"), "scpt", "obj"),
         "application": ObjType(translation("application"), "app", "obj"),
     }
@@ -685,8 +603,8 @@ class MATLABDomain(Domain):
         "classmethod": MatClassmember,
         "staticmethod": MatClassmember,
         "attribute": MatClassmember,
-        "module": MatModule,
-        "currentmodule": MatCurrentModule,
+        "folder": MatFolder,
+        "currentfolder": MatCurrentFolder,
         "decorator": MatDecoratorFunction,
         "decoratormethod": MatDecoratorMethod,
         "script": MatModulelevel,
@@ -701,74 +619,42 @@ class MATLABDomain(Domain):
         "attr": MatXRefRole(),
         "enum": MatXRefRole(),
         "meth": MatXRefRole(fix_parens=True),
-        "mod": MatXRefRole(),
+        "folder": MatXRefRole(),
         "obj": MatXRefRole(),
         "scpt": MatXRefRole(),
         "app": MatXRefRole(),
     }
     initial_data = {
         # Per-document registrations (cleared/merged by docname).
-        "objects": {},  # fullname -> docname, objtype
-        "modules": {},  # modname -> docname, synopsis, platform, deprecated
+        "objects": {},  # path reference -> docname, objtype, display name
+        "folders": {},  # folder reference -> docname, synopsis, platform, deprecated
         # Shared source state, rebuilt by ``mat_types.analyze`` each build.
-        # source path -> {name, type, mtime, size, canonical_name, private}
+        # source path -> {reference, type, mtime, size, matlab_name, private, scope}
         "index": {},
         "parse_cache": {},  # (path, mtime_ns, size) -> parsed MatObject
-        "entities_table": {},  # dotted name -> MatObject
-        "entities_name_map": {},  # name without '+' prefixes -> dotted name
-        # MATLAB name -> entities_table key of the found-first file
-        "canonical_names": {},
+        "entities_table": {},  # path reference -> MatObject (files and folders)
+        "matlab_names": {},  # MATLAB name -> path references
     }
     # Bump when the layout of ``initial_data`` (the pickled domain data) changes
     # so Sphinx invalidates stale cached environments.
-    data_version = 3
+    data_version = 4
     indices = [
-        MATLABModuleIndex,
+        MATLABFolderIndex,
     ]
 
     def __init__(self, env):
         super().__init__(env)
         # Previous build's parse cache, consumed by ``mat_types.analyze``.
         self.previous_parse_cache = {}
+        # display name -> references of documented objects (built lazily)
+        self._displays = None
 
     @property
     def entities_table(self):
         return self.data["entities_table"]
 
-    @property
-    def entities_name_map(self):
-        return self.data["entities_name_map"]
-
-    def find_entity(self, name):
-        """Return the parsed entity for ``name`` or ``None``.
-
-        ``name`` is an ``entities_table`` key or a MATLAB name (``pkg.Cls``)
-        resolved found-first.
-        """
-        entity = self.entities_table.get(name)
-        if entity is None:
-            key, rest = mat_naming.split_canonical(name, self.data["canonical_names"])
-            if key is not None and not rest:
-                entity = self.entities_table.get(key)
-        return entity
-
-    def _find_canonical(self, name, objtypes):
-        # Resolve a MATLAB name (``pkg.Cls.method``) to the name the object was
-        # registered under (which depends on how it was documented).
-        key, rest = mat_naming.split_canonical(name, self.data["canonical_names"])
-        if key is None:
-            return []
-        objects = self.data["objects"]
-        for candidate in mat_naming.registered_name_candidates(key):
-            fullname = ".".join([candidate, *rest])
-            if fullname in objects and (
-                objtypes is None or objects[fullname][1] in objtypes
-            ):
-                return [(fullname, objects[fullname])]
-        return []
-
-    def note_object(self, name, objtype, location=None):
-        """Register a documented object for cross-referencing.
+    def note_object(self, name, objtype, display=None, location=None):
+        """Register a documented object (``name`` is its path reference).
 
         Warns on duplicates only when ``location`` is given.
         """
@@ -781,34 +667,54 @@ class MATLABDomain(Domain):
                 self.env.doc2path(objects[name][0]),
                 location=location,
             )
-        objects[name] = (self.env.docname, objtype)
+        objects[name] = (self.env.docname, objtype, display or name)
+        self._displays = None
 
     def clear_doc(self, docname):
-        for fullname, (fn, _) in list(self.data["objects"].items()):  # noqa: 401
+        for ref, (fn, _, _) in list(self.data["objects"].items()):
             if fn == docname:
-                del self.data["objects"][fullname]
-        for modname, (fn, _, _, _) in list(self.data["modules"].items()):
+                del self.data["objects"][ref]
+        for ref, (fn, _, _, _) in list(self.data["folders"].items()):
             if fn == docname:
-                del self.data["modules"][modname]
+                del self.data["folders"][ref]
+        self._displays = None
 
     def merge_domaindata(self, docnames, otherdata):
         # Merge per-document registrations from a parallel-read worker. Shared
         # source state (index, parse cache, entities) is built in the main
         # process and is not merged (parallel read stays disabled; Phase 6).
-        for fullname, (fn, objtype) in otherdata["objects"].items():
-            if fn in docnames:
-                self.data["objects"][fullname] = (fn, objtype)
-        for modname, data in otherdata["modules"].items():
+        for ref, data in otherdata["objects"].items():
             if data[0] in docnames:
-                self.data["modules"][modname] = data
+                self.data["objects"][ref] = data
+        for ref, data in otherdata["folders"].items():
+            if data[0] in docnames:
+                self.data["folders"][ref] = data
+        self._displays = None
 
-    def find_obj(self, modname, classname, name, type, searchmode=0):
-        """Find a MATLAB object for "name", perhaps using the given module \
-           and/or classname.
+    def _by_display(self, name):
+        if self._displays is None:
+            self._displays = {}
+            for ref, (_, _, display) in self.data["objects"].items():
+                self._displays.setdefault(display, []).append(ref)
+        return self._displays.get(name, [])
 
+    def _scope(self, reference):
+        # Folder a documented object's MATLAB name is visible from.
+        file, _ = mat_naming.parse_reference(reference)
+        entity = self.entities_table.get(reference if file is None else file)
+        if entity is None:
+            return mat_naming.folder_of(reference)
+        return getattr(entity, "scope", None)
 
-        Return a list of (name, object entry) tuples.
+    def find_obj(self, folder, cls, name, type, searchmode=0):
+        """Find documented objects for ``name`` (plan.md Section 2.3).
 
+        1. exact path reference; 2. relative to the class ``cls`` and the
+        folder ``folder`` (a path below it or a MATLAB name visible from it,
+        including its ``private/``); 3. a MATLAB name, excluding private
+        files. With ``searchmode`` 1 (``.name``), a MATLAB-name suffix as last
+        resort. Return a list of (reference, object entry) tuples; several
+        entries mean the name is ambiguous.
         """
         if name[-2:] == "()":  # skip parens
             name = name[:-2]
@@ -817,156 +723,153 @@ class MATLABDomain(Domain):
             return []
 
         objects = self.data["objects"]
-        matches = []
+        objtypes = self.objtypes_for_role(type) if type else None
 
-        newname = None
-        if searchmode == 1:
-            objtypes = self.objtypes_for_role(type)
-            if objtypes is not None:
-                if modname and classname:
-                    fullname = f"{modname}.{classname}.{name}"
-                    if fullname in objects and objects[fullname][1] in objtypes:
-                        newname = fullname
-                if not newname:
-                    if (
-                        modname
-                        and f"{modname}.{name}" in objects
-                        and objects[f"{modname}.{name}"][1] in objtypes
-                    ):
-                        newname = f"{modname}.{name}"
-                    elif name in objects and objects[name][1] in objtypes:
-                        newname = name
-                    else:
-                        # "fuzzy" searching mode
-                        searchname = f".{name}"
-                        matches = [
-                            (oname, objects[oname])
-                            for oname in objects
-                            if oname.endswith(searchname)
-                            and objects[oname][1] in objtypes
-                        ]
-        elif name in objects:
-            newname = name
-        elif type == "mod":
-            # only exact matches allowed for modules
-            return []
-        elif classname and f"{classname}.{name}" in objects:
-            newname = f"{classname}.{name}"
-        elif modname and f"{modname}.{name}" in objects:
-            newname = f"{modname}.{name}"
-        elif modname and classname and f"{modname}.{classname}.{name}" in objects:
-            newname = f"{modname}.{classname}.{name}"
-        elif type == "exc" and "." not in name and f"exceptions.{name}" in objects:
-            newname = f"exceptions.{name}"
-        elif (
-            type in ("func", "meth") and "." not in name and f"object.{name}" in objects
-        ):
-            newname = f"object.{name}"
-        if newname is not None:
-            matches.append((newname, objects[newname]))
-        if not matches and type != "mod":
-            objtypes = self.objtypes_for_role(type) if searchmode == 1 else None
-            matches = self._find_canonical(name, objtypes)
-        return matches
-
-    def resolve_xref(self, env, fromdocname, builder, type, target, node, contnode):  # noqa: ARG002 - required by Sphinx API
-        modname = node.get("mat:module")
-        clsname = node.get("mat:class")
-        searchmode = (node.hasattr("refspecific") and 1) or 0
-        matches = self.find_obj(modname, clsname, target, type, searchmode)
-        if not matches:
-            return None
-        elif len(matches) > 1:
-            logger.warning(
-                (
-                    "[sphinxcontrib-matlabdomain] more than "
-                    "one target found for cross-reference %r: %s"
-                ),
-                target,
-                ", ".join(match[0] for match in matches),
-                type="ref",
-                subtype="python",
-                location=node,
+        if name == ".":
+            name = mat_naming.ROOT_REFERENCE
+        exact = [name, f"{name}/"]
+        if cls:
+            exact.append(f"{cls}.{name}")
+        if folder:
+            relative = mat_naming.join_reference(folder, name)
+            exact += [relative, f"{relative}/"]
+        # (candidates, first only): exact references are tried in order.
+        steps = [([r for r in exact if r in objects], True)]
+        if folder:
+            steps.append(
+                ([r for r in self._by_display(name) if self._scope(r) == folder], False)
             )
+        steps.append(
+            (
+                [
+                    r
+                    for r in self._by_display(name)
+                    if not mat_naming.is_private_reference(r)
+                ],
+                False,
+            )
+        )
+        # Objects of the role's type first (``:class:`C``` inside class C is the
+        # class, not its constructor), then any type.
+        for typed in (True, False) if objtypes is not None else (False,):
+            for refs, first_only in steps:
+                if typed:
+                    refs = [r for r in refs if objects[r][1] in objtypes]
+                refs = list(dict.fromkeys(refs))[: 1 if first_only else None]
+                if refs:
+                    return [(r, objects[r]) for r in refs]
+        if searchmode == 1:
+            return [
+                (ref, entry)
+                for ref, entry in objects.items()
+                if entry[2].endswith(f".{name}")
+                and (objtypes is None or entry[1] in objtypes)
+            ]
+        return []
 
-        name, obj = matches[0]
-
-        if obj[1] == "module":
-            # get additional info for modules
-            docname, synopsis, platform, deprecated = self.data["modules"][name]
-            assert docname == obj[0]
-            title = name
+    def _refnode(self, builder, fromdocname, ref, entry, contnode):
+        docname, objtype, title = entry
+        if objtype == "folder" and ref in self.data["folders"]:
+            _, synopsis, platform, deprecated = self.data["folders"][ref]
             if synopsis:
                 title += f": {synopsis}"
             if deprecated:
                 title += translation(" (deprecated)")
             if platform:
                 title += f" ({platform})"
-            return make_refnode(
-                builder,
-                fromdocname,
-                docname,
-                mat_naming.make_module_target_id(name),
-                contnode,
-                title,
+        return make_refnode(
+            builder,
+            fromdocname,
+            docname,
+            mat_naming.make_target_id(ref),
+            contnode,
+            title,
+        )
+
+    def resolve_xref(self, env, fromdocname, builder, type, target, node, contnode):  # noqa: ARG002 - required by Sphinx API
+        searchmode = (node.hasattr("refspecific") and 1) or 0
+        matches = self.find_obj(
+            node.get("mat:folder"), node.get("mat:class"), target, type, searchmode
+        )
+        if not matches:
+            return None
+        if len(matches) > 1:
+            logger.warning(
+                "[sphinxcontrib-matlabdomain] %r matches several objects: %s; "
+                "use a path reference",
+                target,
+                ", ".join(sorted(match[0] for match in matches)),
+                type="mat",
+                subtype="ambiguous",
+                location=node,
             )
-        else:
-            return make_refnode(
-                builder,
-                fromdocname,
-                obj[0],
-                mat_naming.make_target_id(name),
-                contnode,
-                name,
-            )
+            # Unlinked, without a second "target not found" warning.
+            return contnode
+        ref, entry = matches[0]
+        return self._refnode(builder, fromdocname, ref, entry, contnode)
 
     def get_objects(self):
-        for modname, info in self.data["modules"].items():
+        for ref, (docname, objtype, display) in self.data["objects"].items():
             yield (
-                modname,
-                modname,
-                "module",
-                info[0],
-                mat_naming.make_module_target_id(modname),
-                0,
-            )
-        for refname, (docname, type) in self.data["objects"].items():
-            yield (
-                refname,
-                refname,
-                type,
+                ref,
+                display,
+                objtype,
                 docname,
-                mat_naming.make_target_id(refname),
-                1,
+                mat_naming.make_target_id(ref),
+                0 if objtype == "folder" else 1,
             )
 
-    def resolve_any_xref(self, env, fromdocname, builder, target, node, contnode):
-        ret = []
-        for role in self.roles:
-            matrole = f"mat:{role}"
-            if element := self.resolve_xref(
-                env, fromdocname, builder, matrole, target, node, contnode
-            ):
-                ret.append((matrole, element))
-        return ret
+    def resolve_any_xref(self, env, fromdocname, builder, target, node, contnode):  # noqa: ARG002 - required by Sphinx API
+        searchmode = (node.hasattr("refspecific") and 1) or 0
+        matches = self.find_obj(
+            node.get("mat:folder"), node.get("mat:class"), target, None, searchmode
+        )
+        return [
+            (
+                f"mat:{self.role_for_objtype(entry[1])}",
+                self._refnode(builder, fromdocname, ref, entry, contnode),
+            )
+            for ref, entry in matches
+        ]
 
 
 def analyze(app):
     mat_types.analyze(app)
 
 
-def ensure_configuration(app, env):  # noqa: ARG001
-    if env.matlab_short_links:
-        logger.info(
-            "[sphinxcontrib-matlabdomain] matlab_short_links=True, "
-            "forcing matlab_keep_package_prefix=False."
+_REMOVED_OPTIONS = {
+    "matlab_keep_package_prefix": (
+        "objects are referenced by path (which keeps '+') and signatures show "
+        "MATLAB names (without '+')"
+    ),
+    "matlab_short_links": "signatures show MATLAB names by default",
+}
+
+
+def ensure_configuration(app, config):  # noqa: ARG001
+    for name, reason in _REMOVED_OPTIONS.items():
+        if getattr(config, name) is not None:
+            raise ConfigError(
+                f"{name} was removed: {reason}. Remove it from conf.py."
+            )
+
+    if config.matlab_src_dir is not None:
+        if config.matlab_src_code_project_root is None:
+            action = "it is used as matlab_src_code_project_root"
+        else:
+            action = "it is ignored because matlab_src_code_project_root is set"
+        logger.warning(
+            "[sphinxcontrib-matlabdomain] matlab_src_dir is deprecated; %s. "
+            "Use matlab_src_code_project_root instead.",
+            action,
+            type="mat",
+            subtype="deprecated",
         )
-        env.matlab_keep_package_prefix = False
 
     # Explicit matlab_namelengthmax wins; None derives it from matlab_version.
     try:
-        env.matlab_namelengthmax = mat_naming.resolve_namelengthmax(
-            env.matlab_version, env.matlab_namelengthmax
+        config.matlab_namelengthmax = mat_naming.resolve_namelengthmax(
+            config.matlab_version, config.matlab_namelengthmax
         )
     except ValueError as err:
         raise ConfigError(str(err)) from err
@@ -987,21 +890,26 @@ def setup(app):
 
     app.add_domain(MATLABDomain)
     # autodoc
+    # Relative paths are relative to the Sphinx source directory.
+    app.add_config_value("matlab_src_code_project_root", None, "env")
+    # Deprecated: fallback for matlab_src_code_project_root.
     app.add_config_value("matlab_src_dir", None, "env")
     app.add_config_value("matlab_src_encoding", None, "env")
-    app.add_config_value("matlab_keep_package_prefix", False, "env")
+    # Removed: setting it raises ConfigError.
+    app.add_config_value("matlab_keep_package_prefix", None, "env")
     app.add_config_value("matlab_show_property_default_value", False, "env")
     app.add_config_value("matlab_show_property_specs", False, "env")
-    app.add_config_value("matlab_short_links", False, "env")
+    # Removed: setting it raises ConfigError.
+    app.add_config_value("matlab_short_links", None, "env")
     app.add_config_value("matlab_auto_link", None, "env")
     app.add_config_value("matlab_class_signature", False, "env")
     app.add_config_value("matlab_version", mat_naming.DEFAULT_MATLAB_VERSION, "env")
     # None: derived from matlab_version (2048 from R2025a on).
     app.add_config_value("matlab_namelengthmax", None, "env")
 
-    app.registry.add_documenter("mat:module", doc.MatModuleDocumenter)
+    app.registry.add_documenter("mat:folder", doc.MatFolderDocumenter)
     app.add_directive_to_domain(
-        "mat", "automodule", mat_directives.MatlabAutodocDirective
+        "mat", "autofolder", mat_directives.MatlabAutodocDirective
     )
 
     app.registry.add_documenter("mat:function", doc.MatFunctionDocumenter)

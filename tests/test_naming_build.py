@@ -8,6 +8,15 @@ import pytest
 from sphinx.util.inventory import InventoryFile
 
 from sphinxcontrib import mat_naming
+from sphinxcontrib.mat_types import find_source
+
+CONF = 'extensions = ["sphinxcontrib.matlab"]\nmatlab_src_code_project_root = "."\n'
+
+
+def write_files(root, files):
+    for path, text in files.items():
+        (root / path).parent.mkdir(parents=True, exist_ok=True)
+        (root / path).write_text(text)
 
 
 @pytest.fixture
@@ -332,3 +341,80 @@ def test_folder_directive_and_roles(make_app, tmp_path):
         "Linux",
         True,
     )
+
+
+def test_names_ignore_folders_above_the_project_root(make_app, tmp_path):
+    srcdir = tmp_path / "@work" / "+docs"
+    write_files(
+        srcdir,
+        {
+            "conf.py": CONF,
+            "index.rst": "Index\n=====\n",
+            "f.m": "function f\nend\n",
+            "+pk/g.m": "function g\nend\n",
+        },
+    )
+    app = make_app(srcdir=srcdir)
+    app.build()
+    assert "not callable" not in app.warning.getvalue()
+    names = app.env.domaindata["mat"]["matlab_names"]
+    assert names == {"f": ["f.m"], "pk.g": ["+pk/g.m"], "pk": ["+pk/"]}
+
+
+def test_private_functions_are_visible_from_their_parent_folder(make_app, tmp_path):
+    write_files(
+        tmp_path,
+        {
+            "conf.py": CONF,
+            "index.rst": "Index\n=====\n",
+            "@C/C.m": "classdef C\nend\n",
+            "@C/private/y.m": "function y\nend\n",
+            "a/private/p.m": "function p\nend\n",
+        },
+    )
+    app = make_app(srcdir=tmp_path)
+    app.build()
+    dom = app.env.get_domain("mat")
+    assert [ref for ref, _ in find_source(dom, "y", "@C/")] == ["@C/private/y.m"]
+    assert find_source(dom, "y", "./") == []
+    assert [ref for ref, _ in find_source(dom, "p", "a/")] == ["a/private/p.m"]
+    assert find_source(dom, "p", "./") == []
+
+
+def test_folder_paths_and_ambiguous_names(make_app, tmp_path):
+    write_files(
+        tmp_path,
+        {
+            "conf.py": CONF,
+            "pk/h.m": "function h\nend\n",
+            "+pk/g.m": "function g\nend\n",
+            "a/f.m": "function f\nend\n",
+            "b/f.m": "function f\nend\n",
+            "a/k.m": "function k\nend\n",
+            "b/k.m": "function k\nend\n",
+            "a/+ns/u.m": "function u\nend\n",
+            "b/+ns/v.m": "function v\nend\n",
+            "index.rst": "Index\n=====\n\n"
+            # A path without "/" never shadows a MATLAB name: pk is +pk/.
+            ".. mat:folder:: pk/\n\n"
+            ".. mat:folder:: pk\n\n"
+            ".. mat:currentfolder:: ns\n\n"
+            ".. mat:currentfolder:: None\n\n"
+            ".. mat:function:: k\n\n"
+            ".. mat:function:: a/f.m\n\n"
+            ".. mat:function:: b/f.m\n\n"
+            "Links: :mat:folder:`pk`, :mat:folder:`pk/`, :any:`f`.\n",
+        },
+    )
+    app = make_app(srcdir=tmp_path)
+    app.build()
+    objects = app.env.domaindata["mat"]["objects"]
+    assert objects["pk/"] == ("index", "folder", "pk/")
+    assert objects["+pk/"] == ("index", "folder", "pk")
+    links = html(app).split("Links:")[1].split("</p>")[0]
+    assert object_hrefs(links) == ["mat-+pk/", "mat-pk/"]  # :any:`f` unlinked
+    warnings = app.warning.getvalue()
+    assert "'ns' matches several folders: a/+ns/, b/+ns/" in warnings
+    assert "'k' matches several objects: a/k.m, b/k.m" in warnings
+    assert "'f' matches several objects: a/f.m, b/f.m" in warnings
+    assert "more than one target found" not in warnings

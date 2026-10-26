@@ -9,6 +9,7 @@ Types for MATLAB.
 """
 
 import os
+import unicodedata
 import xml.etree.ElementTree as ET
 from importlib.metadata import version
 from io import open  # for opening files with encoding in Python 2
@@ -217,21 +218,11 @@ def _member(entity, members):
 
 
 def lookup_reference(dom, reference):
-    """Discovered object with the exact path reference, or None.
-
-    A folder may be given without its trailing ``/``.
-    """
+    """Discovered object with the exact path reference, or None."""
     file, members = parse_reference(reference)
     if file is None:
-        return dom.entities_table.get(f"{reference}/")
+        return None
     return _member(dom.entities_table.get(file), members)
-
-
-def _canonical_reference(dom, reference):
-    file, _ = parse_reference(reference)
-    if file is None and f"{reference}/" in dom.entities_table:
-        return f"{reference}/"
-    return reference
 
 
 def _named(dom, name):
@@ -266,10 +257,11 @@ def find_source(dom, target, folder=None, accept=is_source_object):
     1. exact path reference; 2. relative to ``folder`` (a path below it, or a
     MATLAB name visible from it, including its ``private/``); 3. a MATLAB name,
     excluding private files. Only objects for which ``accept(obj)`` is true
-    count. Returns ``[(reference, object)]``: empty if nothing matches,
-    several if the MATLAB name is ambiguous.
+    count. A folder path without its trailing ``/`` is tried last, so it
+    never shadows a MATLAB name. Returns ``[(reference, object)]``: empty if
+    nothing matches, several if the MATLAB name is ambiguous.
     """
-    target = target.strip()
+    target = unicodedata.normalize("NFC", target.strip())
     if target == ".":
         target = ROOT_REFERENCE
     exact = [target]
@@ -278,17 +270,25 @@ def find_source(dom, target, folder=None, accept=is_source_object):
     for ref in exact:
         obj = lookup_reference(dom, ref)
         if obj is not None and accept(obj):
-            return [(_canonical_reference(dom, ref), obj)]
+            return [(ref, obj)]
 
     named = [(r, o, e) for r, o, e in _named(dom, target) if accept(o)]
     if folder:
         local = [(r, o) for r, o, e in named if getattr(e, "scope", None) == folder]
         if local:
             return local
-    return [(r, o) for r, o, e in named if not getattr(e, "private", False)]
+    public = [(r, o) for r, o, e in named if not getattr(e, "private", False)]
+    if public:
+        return public
+
+    for ref in (f"{r}/" for r in exact if not r.endswith("/")):
+        obj = dom.entities_table.get(ref)
+        if obj is not None and accept(obj):
+            return [(ref, obj)]
+    return []
 
 
-def folder_reference(dom, target):
+def folder_reference(dom, target, location=None):
     """Folder reference for a folder argument (path or namespace name)."""
     target = target.strip()
     if target in (".", ROOT_REFERENCE):
@@ -296,6 +296,16 @@ def folder_reference(dom, target):
     found = find_source(dom, target, accept=lambda obj: isinstance(obj, MatModule))
     if len(found) == 1:
         return found[0][0]
+    if found:
+        logger.warning(
+            "[sphinxcontrib-matlabdomain] %r matches several folders: %s; "
+            "use a path reference",
+            target,
+            ", ".join(sorted(ref for ref, _ in found)),
+            type="mat",
+            subtype="ambiguous",
+            location=location,
+        )
     return target if target.endswith("/") else f"{target}/"
 
 
@@ -502,13 +512,22 @@ def _scope(folder):
     ``private/`` the folder holding it.
     """
     parts = [] if folder == ROOT_REFERENCE else folder.rstrip("/").split("/")
-    if parts and parts[-1] == "private" and not any(p[:1] == "@" for p in parts):
+    if parts and parts[-1] == "private":
         parts.pop()
     else:
         parts = parts[: next((i for i, p in enumerate(parts) if p[:1] == "@"), None)]
         while parts and parts[-1][:1] == "+":
             parts.pop()
     return "/".join(parts) + "/" if parts else ROOT_REFERENCE
+
+
+# Stands in for the project root (a plain folder), so folders above the root
+# never change a MATLAB name.
+_ROOT_PART = "root"
+
+
+def _naming_folder(reference):
+    return os.path.normpath(os.path.join(_ROOT_PART, folder_of(reference)))
 
 
 def name_sources(dom, config):
@@ -526,9 +545,12 @@ def name_sources(dom, config):
     matlab_names = dom.data["matlab_names"]
     for path, record in dom.data["index"].items():
         ref = record["reference"]
-        folder, filename = os.path.split(path)
         name = mat_naming.form_matlab_name(
-            folder, filename, record["type"] == "class", namelengthmax, version
+            _naming_folder(ref),
+            os.path.basename(path),
+            record["type"] == "class",
+            namelengthmax,
+            version,
         )
         matlab_name = mat_naming.canonical_name(name) if name else None
         private = is_private_reference(ref)
@@ -554,7 +576,9 @@ def name_sources(dom, config):
     for ref, entity in dom.entities_table.items():
         if not isinstance(entity, MatModule):
             continue
-        namespace = mat_naming.folder_namespace(entity.path, namelengthmax, version)
+        namespace = mat_naming.folder_namespace(
+            _naming_folder(ref), namelengthmax, version
+        )
         entity.matlab_name = namespace
         entity.private = is_private_reference(ref)
         entity.scope = _scope(ref) if namespace is not None else None
@@ -850,7 +874,7 @@ class MatModule(MatObject):
 
     def ref_role(self):
         """Returns role to use for references to this object (e.g. when generating auto-links)"""
-        return "mod"
+        return "folder"
 
     def safe_getmembers(self):
         logger.debug(

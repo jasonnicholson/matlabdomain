@@ -147,9 +147,10 @@ also" entries resolve a name in this order:
 Folders use one directive, ``mat:folder`` (and ``mat:autofolder``); refer to
 them with ``:mat:folder:``. A valid ``+`` folder shows ``namespace
 package.sub`` and can also be referred to by that name; any other folder shows
-``folder target/`` and is referred to by path. ``@Cls`` folders are documented
-through their class. ``mat:currentfolder`` sets the current folder without
-documenting it (``.`` is the root, ``None`` clears it).
+``folder target/`` and is referred to by path. A folder path may omit its
+trailing ``/``; that form is tried last, after MATLAB names. ``@Cls`` folders
+are documented through their class. ``mat:currentfolder`` sets the current
+folder without documenting it (``.`` is the root, ``None`` clears it).
 
 The HTML anchor of an object is ``mat-`` followed by its path reference, in
 which every ASCII character other than letters, digits and
@@ -169,7 +170,7 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
+* :ref:`mat-folderindex`
 * :ref:`search`
 
 .. _Sphinx: https://http://www.sphinx-doc.org

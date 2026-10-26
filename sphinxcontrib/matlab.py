@@ -8,6 +8,7 @@ The MATLAB domain.
 """
 
 import re
+import unicodedata
 
 from docutils.parsers.rst import Directive, directives
 from sphinx import addnodes
@@ -222,6 +223,16 @@ class MatObject(ObjectDescription):
         if len(found) == 1:
             ref = found[0][0]
             return ref, mat_types.display_name(dom, ref)
+        if found:
+            logger.warning(
+                "[sphinxcontrib-matlabdomain] %r matches several objects: %s; "
+                "use a path reference",
+                name,
+                ", ".join(sorted(ref for ref, _ in found)),
+                type="mat",
+                subtype="ambiguous",
+                location=(self.env.docname, self.lineno),
+            )
         return (mat_naming.join_reference(folder, name) if folder else name), name
 
     def get_index_text(self, folder, name_cls):
@@ -414,7 +425,9 @@ class MatFolder(MatObject):
 
     def handle_signature(self, sig, signode):
         dom = self.env.get_domain("mat")
-        ref = mat_types.folder_reference(dom, sig)
+        ref = mat_types.folder_reference(
+            dom, sig, location=(self.env.docname, self.lineno)
+        )
         if ref.rstrip("/").rpartition("/")[2].startswith("@"):
             logger.warning(
                 "[sphinxcontrib-matlabdomain] %s is a class folder; "
@@ -500,7 +513,9 @@ class MatCurrentFolder(Directive):
         env.temp_data["mat:folder"] = (
             None
             if folder == "None"
-            else mat_types.folder_reference(env.get_domain("mat"), folder)
+            else mat_types.folder_reference(
+                env.get_domain("mat"), folder, location=(env.docname, self.lineno)
+            )
         )
         return []
 
@@ -712,7 +727,8 @@ class MATLABDomain(Domain):
         1. exact path reference; 2. relative to the class ``cls`` and the
         folder ``folder`` (a path below it or a MATLAB name visible from it,
         including its ``private/``); 3. a MATLAB name, excluding private
-        files. With ``searchmode`` 1 (``.name``), a MATLAB-name suffix as last
+        files; 4. a folder path without its trailing ``/``. With
+        ``searchmode`` 1 (``.name``), a non-private MATLAB-name suffix as last
         resort. Return a list of (reference, object entry) tuples; several
         entries mean the name is ambiguous.
         """
@@ -722,17 +738,17 @@ class MATLABDomain(Domain):
         if not name:
             return []
 
+        name = unicodedata.normalize("NFC", name)
         objects = self.data["objects"]
         objtypes = self.objtypes_for_role(type) if type else None
 
         if name == ".":
             name = mat_naming.ROOT_REFERENCE
-        exact = [name, f"{name}/"]
+        exact = [name]
         if cls:
             exact.append(f"{cls}.{name}")
         if folder:
-            relative = mat_naming.join_reference(folder, name)
-            exact += [relative, f"{relative}/"]
+            exact.append(mat_naming.join_reference(folder, name))
         # (candidates, first only): exact references are tried in order.
         steps = [([r for r in exact if r in objects], True)]
         if folder:
@@ -749,6 +765,11 @@ class MATLABDomain(Domain):
                 False,
             )
         )
+        if not name.endswith("/"):
+            folders = [f"{name}/"]
+            if folder:
+                folders.append(f"{mat_naming.join_reference(folder, name)}/")
+            steps.append(([r for r in folders if r in objects], True))
         # Objects of the role's type first (``:class:`C``` inside class C is the
         # class, not its constructor), then any type.
         for typed in (True, False) if objtypes is not None else (False,):
@@ -764,6 +785,7 @@ class MATLABDomain(Domain):
                 for ref, entry in objects.items()
                 if entry[2].endswith(f".{name}")
                 and (objtypes is None or entry[1] in objtypes)
+                and not mat_naming.is_private_reference(ref)
             ]
         return []
 
@@ -794,19 +816,23 @@ class MATLABDomain(Domain):
         if not matches:
             return None
         if len(matches) > 1:
-            logger.warning(
-                "[sphinxcontrib-matlabdomain] %r matches several objects: %s; "
-                "use a path reference",
-                target,
-                ", ".join(sorted(match[0] for match in matches)),
-                type="mat",
-                subtype="ambiguous",
-                location=node,
-            )
+            self._warn_ambiguous(target, matches, node)
             # Unlinked, without a second "target not found" warning.
             return contnode
         ref, entry = matches[0]
         return self._refnode(builder, fromdocname, ref, entry, contnode)
+
+    @staticmethod
+    def _warn_ambiguous(target, matches, node):
+        logger.warning(
+            "[sphinxcontrib-matlabdomain] %r matches several objects: %s; "
+            "use a path reference",
+            target,
+            ", ".join(sorted(match[0] for match in matches)),
+            type="mat",
+            subtype="ambiguous",
+            location=node,
+        )
 
     def get_objects(self):
         for ref, (docname, objtype, display) in self.data["objects"].items():
@@ -824,6 +850,10 @@ class MATLABDomain(Domain):
         matches = self.find_obj(
             node.get("mat:folder"), node.get("mat:class"), target, None, searchmode
         )
+        if len(matches) > 1:
+            self._warn_ambiguous(target, matches, node)
+            role = self.role_for_objtype(matches[0][1][1])
+            return [(f"mat:{role}", contnode)]
         return [
             (
                 f"mat:{self.role_for_objtype(entry[1])}",

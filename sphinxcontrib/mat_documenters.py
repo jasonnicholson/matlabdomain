@@ -415,9 +415,9 @@ class MatlabDocumenter(PyDocumenter):
                         docstrings[i][j], no_link_state
                     )
                     if not_in_literal_block:
+                        link = f":meth:`{n}() <{class_obj.fullname(self.env)}.{n}>`"
                         docstrings[i][j] = p.sub(
-                            f":meth:`{n}() <{class_obj.fullname(self.env)}.{n}>`",
-                            docstrings[i][j],
+                            lambda _, t=link: t, docstrings[i][j]
                         )
 
         return docstrings
@@ -859,7 +859,7 @@ class MatFolderDocumenter(MatlabDocumenter, PyModuleDocumenter):
             else:
                 logger.warning(
                     "[sphinxcontrib-matlabdomain] missing attribute mentioned"
-                    " in :members: or __all__: module %s, attribute %s",
+                    " in :members: or __all__: folder %s, attribute %s",
                     safe_getattr(self.object, "__name__", "???"),
                     mname,
                 )
@@ -1128,11 +1128,10 @@ class MatClassDocumenter(MatModuleLevelDocumenter):
         p = re.compile(r"((\*\s*)?(\b\w*\b))(?=\s*-)")
         if match := p.search(line):
             name = match[3]
-            line = p.sub(
-                f"* :{type}:`{name}{parens} <{self.object.fullname(self.env)}.{name}>`",
-                line,
-                1,
+            link = (
+                f"* :{type}:`{name}{parens} <{self.object.fullname(self.env)}.{name}>`"
             )
+            line = p.sub(lambda _: link, line, 1)
         return line
 
     def auto_link_all(self, docstrings):

@@ -46,6 +46,25 @@ Release notes
 * Fixed a segmentation fault (exit code 139) with tree-sitter 0.26.0 on
   standard CPython builds. Its ``Point.row`` getter corrupts reference counts,
   so point rows are now read by index.
+* **Breaking:** docstrings follow MATLAB ``help`` (R2026a). A comment block
+  before a file's ``function`` or ``classdef`` line wins over the block after
+  it, so licence and copyright headers become the docstring. Blank lines
+  between a declaration and its block are allowed. Methods keep using the
+  block after their ``function`` line. Files with CRLF line endings keep all
+  lines of a block.
+* ``.m`` files are classified by their first line of code (whole-word
+  ``function``/``classdef``, ``classify()``); a script
+  with local functions is now a script, not a function. New suppressible
+  warnings: ``mat.invalid_matlab`` when that type and the tree-sitter parse
+  disagree (likely invalid MATLAB), and ``mat.no_code`` for empty or
+  comment-only files, which are documented as scripts.
+* ``Contents.m``, ``slblocks.m``, ``sl_customization.m``, ``pathdef.m``,
+  ``matlabrc.m`` and ``rtwmakecfg.m`` are left out of ``mat:autofolder``
+  members and never warn; an explicit directive still documents them.
+* Source files are found through a file-type handler registry (``.m``,
+  ``.mlapp``), the extension point for Simulink and Simscape files.
+* Parsing is faster: tree-sitter queries are compiled once and the
+  tree-sitter version is no longer looked up per file.
 
 .. _PR 232: https://github.com/sphinx-contrib/matlabdomain/pull/253
 

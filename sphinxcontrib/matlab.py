@@ -652,7 +652,7 @@ class MATLABDomain(Domain):
     }
     # Bump when the layout of ``initial_data`` (the pickled domain data) changes
     # so Sphinx invalidates stale cached environments.
-    data_version = 4
+    data_version = 5
     indices = [
         MATLABFolderIndex,
     ]

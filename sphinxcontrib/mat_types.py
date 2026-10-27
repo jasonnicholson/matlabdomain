@@ -11,7 +11,6 @@ Types for MATLAB.
 import os
 import unicodedata
 import xml.etree.ElementTree as ET
-from importlib.metadata import version
 from io import open  # for opening files with encoding in Python 2
 from zipfile import ZipFile
 
@@ -19,21 +18,23 @@ from sphinx.environment import CONFIG_OK
 from sphinx.util.logging import getLogger
 
 from . import mat_naming
+from .mat_classify import classify, first_line_of_code, is_hidden
+from .mat_handlers import handler_for, handlers
 
 def get_node(match_dict, key):
     res = match_dict.get(key)
     return res[0] if res else None
 
-from tree_sitter import Node, Parser, Query, QueryCursor, Tree
+from tree_sitter import Node, Parser, Tree
 
 from sphinxcontrib.mat_tree_sitter_parser import (
     ML_LANG,
     MatClassParser,
     MatFunctionParser,
     MatScriptParser,
+    parsed_type,
 )
 from .mat_naming import (
-    REGISTERED_EXTENSIONS,
     ROOT_REFERENCE,
     folder_of,
     is_private_reference,
@@ -325,23 +326,36 @@ def source_key(path):
     return (path, st.st_mtime_ns, st.st_size)
 
 
-def _source_type(obj):
-    # Class-folder functions become MatMethod later; they are still functions.
-    for cls, kind in (
-        (MatClass, "class"),
-        (MatFunction, "function"),
-        (MatScript, "script"),
-        (MatApplication, "application"),
-    ):
-        if isinstance(obj, cls):
-            return kind
-    return "unknown"
+def check_source(ref, obj):
+    """Warn if ``classify()`` and tree-sitter disagree, or the file has no code."""
+    if is_hidden(ref):
+        return
+    if obj.parsed_type is not None and obj.source_type != obj.parsed_type:
+        logger.warning(
+            "[sphinxcontrib-matlabdomain] %s: its first line of code makes it a "
+            "%s, but tree-sitter parsed a %s; the file may be invalid MATLAB.",
+            ref,
+            obj.source_type,
+            obj.parsed_type,
+            type="mat",
+            subtype="invalid_matlab",
+        )
+    if not obj.has_code:
+        logger.warning(
+            "[sphinxcontrib-matlabdomain] %s has no code; it is documented as a "
+            "script.",
+            ref,
+            type="mat",
+            subtype="no_code",
+        )
 
 
 def _parse_cached(path, ref, parse):
     """Run ``parse()`` unless the previous build parsed the same key.
 
-    Records the result in the domain's ``index`` and ``parse_cache``.
+    Records the result in the domain's ``index`` and ``parse_cache``; the
+    index ``type`` is the handler's ``classify()`` (``obj.source_type``).
+    Detached parses (no Sphinx build) record nothing and do not warn.
     """
     dom = _domain()
     if isinstance(dom, _DetachedEntityStore):
@@ -357,10 +371,11 @@ def _parse_cached(path, ref, parse):
         logger.debug("[sphinxcontrib-matlabdomain] reusing parsed %s", path)
     if obj is not None:
         obj.ref = ref
+        check_source(ref, obj)
         dom.data["parse_cache"][key] = obj
         dom.data["index"][path] = {
             "reference": ref,
-            "type": _source_type(obj),
+            "type": obj.source_type,
             "mtime": key[1],
             "size": key[2],
         }
@@ -560,7 +575,7 @@ def name_sources(dom, config):
         if entity is not None:
             entity.matlab_name, entity.private, entity.scope = matlab_name, private, scope
         if name is None:
-            if not private:
+            if not private and not is_hidden(ref):
                 logger.warning(
                     "[sphinxcontrib-matlabdomain] %s is not callable in MATLAB %s; "
                     "it is documented by its path reference.",
@@ -615,6 +630,11 @@ class MatObject(object):
     encoding = None
     sphinx_env = None
     sphinx_app = None
+    #: index type (the handler's ``classify()``), tree-sitter's type (``.m``
+    #: only) and whether the file has code
+    source_type = None
+    parsed_type = None
+    has_code = True
 
     def __init__(self, name):
         #: name of MATLAB object
@@ -699,34 +719,33 @@ class MatObject(object):
             )
             return MatModule(name, fullpath, ref)
 
-        stem, ext = os.path.splitext(name)
-        if ext not in REGISTERED_EXTENSIONS or not os.path.isfile(fullpath):
+        handler = handler_for(fullpath)
+        if handler is not None:
+            stem = os.path.splitext(name)[0]
+        else:
             stem = name
-            ext = next(
-                (e for e in REGISTERED_EXTENSIONS if os.path.isfile(fullpath + e)), None
+            handler = next(
+                (h for h in handlers() if h.discover(fullpath + h.extension)), None
             )
-            if ext is None:
+            if handler is None:
                 return None
-            fullpath += ext
+            fullpath += handler.extension
         ref = path_reference(MatObject.basedir, fullpath, is_folder=False)
         folder = folder_of(ref)
         logger.debug(f"[sphinxcontrib-matlabdomain] matlabify parse {ref=}, {fullpath=}")
-        if ext == ".mlapp":
-            return _parse_cached(
-                fullpath,
-                ref,
-                lambda: MatObject.parse_mlappfile(fullpath, stem, folder),
-            )
-        return _parse_cached(
-            fullpath,
-            ref,
-            lambda: MatObject.parse_mfile(fullpath, stem, folder, MatObject.encoding),
-        )
+
+        def parse():
+            obj = handler.parse(fullpath, stem, folder, MatObject.encoding)
+            if obj is not None and obj.source_type is None:
+                obj.source_type = handler.classify(fullpath)
+            return obj
+
+        return _parse_cached(fullpath, ref, parse)
 
     @staticmethod
     def parse_mfile(mfile, name, path, encoding=None):
         """
-        Use Pygments to parse mfile to determine type: function or class.
+        Parse an ``.m`` file with tree-sitter.
 
         :param mfile: Full path of mfile.
         :type mfile: str
@@ -738,61 +757,46 @@ class MatObject(object):
         :type encoding: str
         :returns: :class:`MatObject` that represents the type of mfile.
 
-        Assumes that the first token in the file is either one of the keywords:
-        "classdef" or "function" otherwise it is assumed to be a script.
+        The type is ``classify()`` of the text (``source_type``). The object is
+        built from what tree-sitter parsed (``parsed_type``); the two differ
+        only for invalid MATLAB (see ``check_source``).
 
         File encoding can be set using sphinx config ``matlab_src_encoding``
         Default behaviour : replaces parsing errors with ? chars
         """
-        # use Pygments to parse mfile to determine type: function/classdef
         # read mfile code
         if encoding is None:
             encoding = "utf-8"
         with open(mfile, "rb") as code_f:
             code = code_f.read()
+        text = code.decode(encoding, errors="replace")
 
-        # parse the file
-        tree_sitter_ver = tuple([int(sec) for sec in version("tree_sitter").split(".")])
-        if tree_sitter_ver[1] == 21:
-            parser = Parser()
-            parser.set_language(ML_LANG)
-        else:
-            parser = Parser(ML_LANG)
-        tree = parser.parse(code)
+        # parse the file; tree-sitter-matlab splits comment blocks at CRLF
+        tree = Parser(ML_LANG).parse(code.replace(b"\r\n", b"\n"))
 
         modname = path  # folder reference
 
-        # assume that functions and classes always start with a keyword
-        def isFunction(tree):
-            q_is_function = Query(ML_LANG, 
-                r"""(source_file [(comment) "\n"]* (function_definition))"""
-            )
-            matches = list(QueryCursor(q_is_function).matches(tree.root_node))
-            return bool(matches)
-
-        def isClass(tree):
-            q_is_class = Query(ML_LANG, "(class_definition)")
-            matches = list(QueryCursor(q_is_class).matches(tree.root_node))
-            return bool(matches)
-
-        if isClass(tree):
+        parsed = parsed_type(tree.root_node)
+        if parsed == "class":
             logger.debug(
                 "[sphinxcontrib-matlabdomain] parsing classdef %s from %s.",
                 name,
                 modname,
             )
-            return MatClass(name, modname, tree.root_node, encoding)
-        elif isFunction(tree):
+            obj = MatClass(name, modname, tree.root_node, encoding)
+        elif parsed == "function":
             logger.debug(
                 "[sphinxcontrib-matlabdomain] parsing function %s from %s.",
                 name,
                 modname,
             )
-            return MatFunction(name, modname, tree.root_node, encoding)
+            obj = MatFunction(name, modname, tree.root_node, encoding)
         else:
-            return MatScript(name, modname, tree.root_node, encoding)
-
-        return None
+            obj = MatScript(name, modname, tree.root_node, encoding)
+        obj.source_type = classify(mfile, text)
+        obj.parsed_type = parsed or "script"
+        obj.has_code = obj.source_type != "script" or bool(first_line_of_code(text))
+        return obj
 
     @staticmethod
     def parse_mlappfile(mlappfile, name, path):
@@ -894,8 +898,8 @@ class MatModule(MatObject):
                 if key.startswith(".") or key.startswith("_"):
                     continue
                 name = key
-            # Only visit MATLAB files
-            elif os.path.splitext(key)[1] in REGISTERED_EXTENSIONS:
+            # Only visit source files with a handler
+            elif handler_for(path) is not None:
                 name = os.path.splitext(key)[0]
             else:
                 continue

@@ -41,6 +41,7 @@ from sphinx.util.inspect import safe_getattr
 from sphinx.util.logging import getLogger
 
 from . import mat_naming
+from .mat_classify import is_hidden
 from .mat_types import (
     MatApplication,
     MatClass,
@@ -846,8 +847,13 @@ class MatFolderDocumenter(MatlabDocumenter, PyModuleDocumenter):
                 # documenting imported objects
                 return True, self.object.safe_getmembers()
             else:
-                # a file and a folder may share a name
-                names = (name for name, _ in self.object.__all__)
+                # a file and a folder may share a name; special files are
+                # documented only when named
+                names = (
+                    name
+                    for name, obj in self.object.__all__
+                    if not is_hidden(getattr(obj, "ref", ""))
+                )
                 memberlist = list(dict.fromkeys(names))
         else:
             memberlist = self.options.members or []

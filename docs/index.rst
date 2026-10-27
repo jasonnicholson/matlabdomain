@@ -163,6 +163,43 @@ only change if a file moves.
 ``matlab_keep_package_prefix`` and ``matlab_short_links`` were removed;
 setting them is an error.
 
+Help text, file types and warnings
+----------------------------------
+
+Docstrings follow MATLAB ``help`` (checked on R2026a):
+
+* For a file's ``function`` or ``classdef``, the first comment block before
+  the declaration is the docstring; without one, the block after the
+  declaration line is. Blank lines may separate either block from the
+  declaration. A license or copyright header at the top of a file therefore
+  becomes the docstring, as in MATLAB.
+* Methods use only the block after their ``function`` line; a comment block
+  before them is ignored.
+* A comment on the declaration line itself is not part of the docstring.
+
+Each ``.m`` file is a script, function or class according to its first line
+of code (blank lines, ``%`` comments and ``%{``/``%}`` blocks are skipped);
+``function`` and ``classdef`` must be whole words (``functions = 1;`` is a
+script). A script with local functions is a script.
+Two warnings, which ``suppress_warnings`` can turn off, flag files to check:
+
+* ``mat.invalid_matlab``: that type and the tree-sitter parse disagree, for
+  example a ``classdef`` missing an ``end`` or ``function = 1;``. The file is
+  probably not valid MATLAB; it is still documented, as what tree-sitter
+  parsed.
+* ``mat.no_code``: the file is empty or has only comments; it is documented
+  as a script.
+
+MATLAB and Simulink read some files by name: ``Contents.m`` (folder help),
+``slblocks.m``, ``sl_customization.m``, ``pathdef.m``, ``matlabrc.m`` and
+``rtwmakecfg.m`` (any letter case). They are indexed and can be documented
+with an explicit directive, but ``mat:autofolder`` with ``:members:`` leaves
+them out and they never raise the warnings above or ``mat.not_callable``.
+
+Source files are found by extension through a file-type registry. ``.m`` and
+``.mlapp`` (App Designer) files are supported; Simulink (``.slx``, ``.mdl``,
+``.xml``) and Simscape (``.ssc``) files are planned.
+
 Directives
 ----------
 

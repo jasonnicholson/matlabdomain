@@ -243,6 +243,8 @@ q_script = Query(ML_LANG,
 
 q_get_set = Query(ML_LANG, """["get." "set."]""")
 
+q_function = Query(ML_LANG, "(function_definition) @f")
+
 q_line_continuation = Query(ML_LANG, "(line_continuation) @lc")
 
 
@@ -257,6 +259,54 @@ def get_row(point):
     # returns a borrowed reference, corrupting the heap and causing SIGSEGV.
     # Fixed upstream in py-tree-sitter afb3836 (unreleased as of 0.26.0).
     return point[0]
+
+
+_PARSED_TYPES = {"class_definition": "class", "function_definition": "function"}
+
+
+def parsed_type(root_node):
+    """Type tree-sitter gives a file: its first node that is not a comment.
+
+    ``class``, ``function`` or ``script``; ``None`` if the file has no code.
+    """
+    for node in root_node.named_children:
+        if node.type not in ("comment", "line_continuation"):
+            return _PARSED_TYPES.get(node.type, "script")
+    return None
+
+
+def leading_comment(root_node, decl):
+    """Return the first comment block before a file's declaration ``decl``.
+
+    MATLAB ``help`` (R2026a) prefers it to the block after the ``function``
+    or ``classdef`` line, blank lines or not; methods and local functions
+    ignore it (``root_node`` is then not the file, so this returns None).
+    """
+    if root_node.type != "source_file":
+        return None
+    for node in root_node.named_children:
+        if node.start_byte >= decl.start_byte:
+            return None
+        if node.type == "comment":
+            return node
+    return None
+
+
+def trailing_docstring(node, prev, encoding):
+    """Return the docstring of the comment ``node`` after a declaration.
+
+    ``prev`` is the node before it. A comment on the declaration line is not
+    help; if nothing follows it in its block, the next comment block is
+    (MATLAB R2026a ``help``).
+    """
+    docstring = process_text_into_docstring(node.text, encoding)
+    if get_row(node.start_point) != get_row(prev.end_point):
+        return docstring
+    docstring = "\n".join(docstring.split("\n")[1:])
+    after = node.next_named_sibling
+    if not docstring and after is not None and after.type == "comment":
+        return process_text_into_docstring(after.text, encoding)
+    return docstring
 
 
 def process_text_into_docstring(text, encoding):
@@ -311,7 +361,7 @@ class MatFunctionParser:
     def __init__(self, root_node, encoding):
         """Parse Function definition"""
         self.encoding = encoding
-        fun_nodes = [m[1]["f"][0] for m in QueryCursor(Query(ML_LANG, "(function_definition) @f")).matches(root_node)]
+        fun_nodes = [m[1]["f"][0] for m in QueryCursor(q_function).matches(root_node)]
         fun_node = fun_nodes[0] if fun_nodes else root_node
         fun_match = QueryCursor(q_fun).captures(fun_node)
         self.name = get_node(fun_match, "name").text.decode(
@@ -346,23 +396,17 @@ class MatFunctionParser:
             for argblock_node in argblock_nodes:
                 self._parse_argument_section(argblock_node)
 
-        # get docstring
+        # get docstring: the comment block after the declaration, blank lines
+        # allowed, unless a block precedes a file's function (leading_comment).
         docstring_node = get_node(fun_match, "docstring")
         docstring = ""
         if docstring_node is not None:
-            prev_sib = docstring_node.prev_named_sibling
-            if get_row(docstring_node.start_point) - get_row(prev_sib.end_point) <= 1:
-                if get_row(docstring_node.start_point) == get_row(prev_sib.end_point):
-                    # if the docstring is on the same line as the end of the function drop it
-                    docstring = process_text_into_docstring(
-                        docstring_node.text, self.encoding
-                    )
-                    split_ds = docstring.split("\n")
-                    docstring = "\n".join(split_ds[1:]) if len(split_ds) > 1 else ""
-                else:
-                    docstring = process_text_into_docstring(
-                        docstring_node.text, self.encoding
-                    )
+            docstring = trailing_docstring(
+                docstring_node, docstring_node.prev_named_sibling, self.encoding
+            )
+        leading = leading_comment(root_node, fun_node)
+        if leading is not None:
+            docstring = process_text_into_docstring(leading.text, self.encoding)
 
         if not docstring:
             docstring = None
@@ -599,23 +643,16 @@ class MatClassParser:
                 ]
                 self.supers.append(".".join(super_cls))
 
-        # get docstring and check that it consecutive
+        # get docstring (same rule as MatFunctionParser)
         docstring_node = get_node(class_match, "docstring")
         docstring = ""
         if docstring_node is not None:
-            prev_node = docstring_node.prev_sibling
-            if get_row(docstring_node.start_point) - get_row(prev_node.end_point) <= 1:
-                if get_row(docstring_node.start_point) == get_row(prev_node.end_point):
-                    # if the docstring is on the same line as the end of the classdef drop it
-                    docstring = process_text_into_docstring(
-                        docstring_node.text, self.encoding
-                    )
-                    split_ds = docstring.split("\n")
-                    docstring = "\n".join(split_ds[1:]) if len(split_ds) > 1 else ""
-                else:
-                    docstring = process_text_into_docstring(
-                        docstring_node.text, self.encoding
-                    )
+            docstring = trailing_docstring(
+                docstring_node, docstring_node.prev_sibling, self.encoding
+            )
+        leading = leading_comment(root_node, self.cls)
+        if leading is not None:
+            docstring = process_text_into_docstring(leading.text, self.encoding)
         self.docstring = docstring
 
         prop_matches = list(QueryCursor(q_properties).matches(self.cls))

@@ -33,11 +33,10 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import mat_handlers
+
 
 VALID_MATLAB_NAMELENGTHMAX = {63, 2048}
-
-# File types with a handler; the Phase 4 registry replaces this tuple.
-REGISTERED_EXTENSIONS = (".m", ".mlapp")
 
 # Path reference of the project root folder.
 ROOT_REFERENCE = "./"
@@ -208,16 +207,19 @@ def path_reference(
 
 
 def parse_reference(
-    reference: str, extensions=REGISTERED_EXTENSIONS
+    reference: str, extensions=None
 ) -> tuple[str | None, list[str]]:
     """Split a path reference into ``(file or folder, members)``.
 
-    The file part ends at the first registered extension in the last path
+    The file part ends at the first registered extension (``extensions``
+    defaults to the handler registry's) in the last path
     segment that is followed by ``.`` or the end:
     ``"a/Cls.m.meth"`` -> ``("a/Cls.m", ["meth"])``; folders
     (``"a/+pkg/"``) have no members. Returns ``(None, [])`` for anything
     else, e.g. a MATLAB name or a folder without its trailing ``/``.
     """
+    if extensions is None:
+        extensions = mat_handlers.extensions()
     if reference.endswith("/"):
         return reference, []
     head, sep, last = reference.rpartition("/")

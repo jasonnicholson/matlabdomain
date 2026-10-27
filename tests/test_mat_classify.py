@@ -1,0 +1,133 @@
+"""Tests for ``classify()``.
+
+``test_classify_reference_cases`` ports the 14 reference classifier tests (all
+pass on MATLAB R2026a); their support files are copied unchanged to
+``tests/_classify_cases`` (discovery skips ``_`` folders).
+"""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from sphinxcontrib.mat_classify import classify, first_line_of_code, is_hidden
+
+SUPPORT = Path(__file__).parent / "_classify_cases"
+
+
+@pytest.mark.parametrize(
+    ("name", "file", "expected"),
+    [
+        ("blank_file_no_extension", "blankFile", "script"),
+        ("blank_file_with_extension", "blankFile.m", "script"),
+        ("file_with_only_complete_block_comment", "blockCommentComplete.m", "script"),
+        (
+            "file_with_only_incomplete_block_comment",
+            "blockCommentIncomplete.m",
+            "script",
+        ),
+        ("file_with_only_one_comment", "commentFile", "script"),
+        ("standard_class", "standardClass.m", "class"),
+        (
+            "standard_class_with_block_comment",
+            "standardClassWithBlockComment.m",
+            "class",
+        ),
+        (
+            "standard_class_with_block_comment_blank_line",
+            "standardClassWithBlockCommentBlankLine.m",
+            "class",
+        ),
+        (
+            "standard_class_with_comment_blank_line",
+            "standardClassWithCommentBlankLine.m",
+            "class",
+        ),
+        ("standard_class_with_tab_space", "standardClassWithTabSpace.m", "class"),
+        ("standard_function", "standardFunction", "function"),
+        ("standard_script", "standardScript", "script"),
+        ("class_with_leading_utf8_bom", "standardClassWithBOM.m", "class"),
+        ("function_with_leading_utf8_bom", "standardFunctionWithBOM.m", "function"),
+    ],
+)
+def test_classify_reference_cases(name, file, expected):
+    assert classify(SUPPORT / file) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("\tclassdef C\nend\n", "class"),
+        ("% c\r\n\r\nfunction f\r\nend\r\n", "function"),
+        ("% c\rfunction f\rend\r", "function"),
+        ("x = 1;\n\ufeffclassdef C\n", "script"),
+        ("% a\n\ufeff\nfunction f\n", "function"),
+        # Block comments: exact %{ / %} lines only, not nested.
+        ("  %{  \nfunction f\n  %}\nclassdef C\n", "class"),
+        ("%{ not a block\nfunction f\n", "function"),
+        ("%{\n%{\n%}\nfunction f\n%}\n", "function"),
+        ("%%\nfunction f\n", "function"),
+        # Whole keywords only (unlike the reference); MATLAB R2026a runs the
+        # first three as scripts and the last two as a function and a class.
+        ("functions = 1;\n", "script"),
+        ("classdefault = 2;\n", "script"),
+        ("function_x = 1;\n", "script"),
+        ("function[y]=f(x)\n", "function"),
+        ("classdef(Abstract) C\n", "class"),
+        ("function = 1;\n", "function"),
+        ("Function f\n", "script"),
+        ("", "script"),
+    ],
+)
+def test_classify_text(text, expected):
+    assert classify("x.m", text) == expected
+
+
+def test_classify_extensions(tmp_path):
+    assert classify("app.mlapp", "function f") == "unknown"
+    assert classify("x.txt", "function f") == "unknown"
+    assert classify("X.M", "function f") == "function"
+    assert classify("x", "classdef x") == "class"
+    assert classify(tmp_path / "missing.m") == "unknown"
+    (tmp_path / "f.m").write_bytes(b"\xef\xbb\xbf% \xff\nfunction f\n")
+    assert classify(tmp_path / "f") == "function"
+    assert classify("a.b/c", "function f") == "function"
+
+
+def test_first_line_of_code():
+    assert first_line_of_code("% c\n\n  x = 1; % c\n") == "x = 1; % c"
+    assert first_line_of_code("%{\nfunction f\n") == ""
+
+
+def test_is_hidden():
+    for name in ("Contents.m", "a/+p/contents.m", "slblocks.m", "SL_CUSTOMIZATION.m",
+                 "pathdef.m", "matlabrc.m", "rtwmakecfg.m"):
+        assert is_hidden(name)
+    for name in ("startup.m", "finish.m", "userpath.m", "toolboxdir.m", "Contents.m/",
+                 "a/Contents.m.method", "MyContents.m"):
+        assert not is_hidden(name)
+
+
+# Every row's ``type`` column is the reference classifier's result (checked in
+# MATLAB R2026a on all 66,490 files present).
+_CORPUS = Path(__file__).parents[2] / "reference" / "matlab_names_reference.json"
+_REPO = Path(__file__).parents[1]
+
+
+def _corpus_path(fullpath):
+    _, sep, tail = fullpath.partition("/matlabdomain/test_slow/")
+    return _REPO / "test_slow" / tail if sep else Path(fullpath)
+
+
+@pytest.mark.skipif(not _CORPUS.exists(), reason="reference corpus not present")
+def test_oracle_full_corpus():
+    rows = [
+        (path, row["type"])
+        for row in json.loads(_CORPUS.read_text())
+        if (path := _corpus_path(row["fullpath"])).is_file()
+    ]
+    if not rows:
+        pytest.skip("corpus files not present")
+    assert len(rows) > 60000
+    mismatches = [(str(p), t) for p, t in rows if classify(p) != t]
+    assert mismatches == []

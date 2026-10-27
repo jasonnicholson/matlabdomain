@@ -68,7 +68,7 @@ def doctree_text(app, docname):
 
 
 def test_initial_data_layout():
-    assert MATLABDomain.data_version == 4
+    assert MATLABDomain.data_version == 5
     assert set(MATLABDomain.initial_data) == {
         "objects",
         "folders",

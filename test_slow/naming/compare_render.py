@@ -32,9 +32,6 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 VARIANTS = {
     "conf": [],
-    "keep0": ["-D", "matlab_keep_package_prefix=0"],
-    "keep1": ["-D", "matlab_keep_package_prefix=1"],
-    "short": ["-D", "matlab_short_links=1"],
     "all": ["-D", "matlab_auto_link=all"],
 }
 ID_RE = re.compile(r'\bid="([^"]*)"')

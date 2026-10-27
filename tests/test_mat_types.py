@@ -258,7 +258,14 @@ def test_ClassWithCommentHeader(dir_test_data):
     obj = MatObject.parse_mfile(mfile, "ClassWithCommentHeader", "test_data")
 
     assert obj.name == "ClassWithCommentHeader"
-    assert obj.docstring == "A class with a comment header on the top."
+    # MATLAB R2026a help shows the leading header, not the block after classdef.
+    assert obj.docstring == (
+        "This is a Comment Header\nCopyright (C) <year>, by <full_name>\n\n"
+        "Some descriptions ...\n\n"
+        "This header and all further comments above the class\n"
+        "will be ignored by the documentation system.\n\n"
+        "Licence (GPL, BSD, etc.)\n"
+    )
     method_get_tform = obj.methods["getTransformation"]
     assert method_get_tform.name == "getTransformation"
     assert list(method_get_tform.retv.keys()) == ["tform"]
@@ -271,7 +278,9 @@ def test_with_comment_header(dir_test_data):
     obj = MatObject.parse_mfile(mfile, "f_with_comment_header", "test_data")
 
     assert obj.name == "f_with_comment_header"
-    assert obj.docstring == "A simple function with a comment header on the top."
+    # MATLAB R2026a help shows the leading header.
+    assert obj.docstring.startswith("This is a Comment Header\nCopyright")
+    assert "comments above the function\n" in obj.docstring
 
 
 def test_script_with_comment_header(dir_test_data):

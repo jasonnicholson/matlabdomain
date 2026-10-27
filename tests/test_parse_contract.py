@@ -1,0 +1,365 @@
+"""Parse contract in a build: classify() types, divergence and no-code warnings.
+
+plan.md Phase 4, Sections 2.5-2.7.
+"""
+
+import pytest
+
+from sphinxcontrib import mat_types
+
+CONF = (
+    'extensions = ["sphinx.ext.autodoc", "sphinxcontrib.matlab"]\n'
+    'matlab_src_code_project_root = "."\n'
+)
+
+# classdef without the end of its method (tests/test_data/ClassWithErrors.m):
+# a class by its first line, a script for tree-sitter.
+BROKEN_CLASS = """classdef PcBox
+    % Class definition with missing end
+
+    methods
+        function obj = PcBox()
+            obj.a = 10;
+    end
+end
+"""
+
+SOURCES = {
+    "pc_function.m": "function pc_function\n% A function.\nend\n",
+    "pc_local.m": "% A script with a local function.\nx = 1;\nfunction g\nend\n",
+    "pc_empty.m": "",
+    "pc_comment.m": "% Only a comment.\n",
+    "pc_functions.m": "functions = 1;\n",
+    "pc_bad.m": "function = 1;\n",
+    "@PcBox/PcBox.m": BROKEN_CLASS,
+}
+
+
+def write_project(root, files, rst=""):
+    for path, text in {**files, "conf.py": CONF, "index.rst": rst}.items():
+        (root / path).parent.mkdir(parents=True, exist_ok=True)
+        (root / path).write_text(text)
+
+
+def index_by_ref(app):
+    return {e["reference"]: e for e in app.env.domaindata["mat"]["index"].values()}
+
+
+def test_index_type_comes_from_classify(make_app, tmp_path):
+    write_project(
+        tmp_path,
+        SOURCES,
+        "Index\n=====\n\n.. mat:autoscript:: pc_local.m\n\n"
+        ".. mat:autoscript:: @PcBox/PcBox.m\n",
+    )
+    app = make_app(srcdir=tmp_path)
+    app.build()
+
+    index = index_by_ref(app)
+    assert {ref: e["type"] for ref, e in index.items()} == {
+        "pc_function.m": "function",
+        "pc_local.m": "script",
+        "pc_empty.m": "script",
+        "pc_comment.m": "script",
+        "pc_functions.m": "script",
+        "pc_bad.m": "function",
+        "@PcBox/PcBox.m": "class",
+    }
+    # is_class comes from classify(): the broken class keeps its class name.
+    assert index["@PcBox/PcBox.m"]["matlab_name"] == "PcBox"
+
+    table = app.env.get_domain("mat").entities_table
+    assert isinstance(table["pc_local.m"], mat_types.MatScript)
+    assert isinstance(table["@PcBox/PcBox.m"], mat_types.MatScript)
+    assert isinstance(table["pc_functions.m"], mat_types.MatScript)
+    assert isinstance(table["pc_bad.m"], mat_types.MatScript)
+    assert table["pc_comment.m"].docstring == "Only a comment."
+
+    html = (app.outdir / "index.html").read_text()
+    assert "A script with a local function." in html
+    # Documented, not dropped (its comment is inside a tree-sitter ERROR node).
+    assert 'id="mat-&#64;PcBox/PcBox.m"' in html
+
+
+def test_divergence_and_no_code_warnings(make_app, tmp_path, monkeypatch):
+    write_project(tmp_path, SOURCES)
+    app = make_app(srcdir=tmp_path)
+    app.build()
+
+    warnings = app.warning.getvalue()
+    assert warnings.count("may be invalid MATLAB") == 2
+    assert (
+        "@PcBox/PcBox.m: its first line of code makes it a class, but tree-sitter "
+        "parsed a script; the file may be invalid MATLAB. [mat.invalid_matlab]"
+    ) in warnings
+    assert (
+        "pc_bad.m: its first line of code makes it a function, but "
+        "tree-sitter parsed a script"
+    ) in warnings
+    assert "pc_functions.m" not in warnings
+    assert warnings.count("has no code") == 2
+    assert (
+        "pc_empty.m has no code; it is documented as a script. [mat.no_code]"
+        in warnings
+    )
+    assert "pc_comment.m has no code" in warnings
+
+    # Rebuilding from the pickled environment reuses the parse and warns again.
+    def no_parse(*args, **kwargs):
+        raise AssertionError("file parsed again")
+
+    monkeypatch.setattr(mat_types.MatObject, "parse_mfile", staticmethod(no_parse))
+    app2 = make_app(srcdir=tmp_path)
+    app2.build()
+    assert app2.warning.getvalue().count("may be invalid MATLAB") == 2
+    assert app2.warning.getvalue().count("has no code") == 2
+
+
+@pytest.mark.parametrize("subtype", ["invalid_matlab", "no_code"])
+def test_warnings_are_suppressible(make_app, tmp_path, subtype):
+    write_project(tmp_path, SOURCES)
+    app = make_app(
+        srcdir=tmp_path, confoverrides={"suppress_warnings": [f"mat.{subtype}"]}
+    )
+    app.build()
+    warnings = app.warning.getvalue()
+    assert f"[mat.{subtype}]" not in warnings
+    assert "[mat.invalid_matlab]" in warnings or "[mat.no_code]" in warnings
+
+
+def test_special_files_are_indexed_but_hidden(make_app, tmp_path):
+    files = {
+        "Contents.m": "% Root Toolbox\n% Version 1.0\n",
+        "+for/contents.m": "% Keyword namespace contents\n",
+        "slblocks.m": "function b = slblocks\n% Library.\nb = 1;\nend\n",
+        "sl_customization.m": "function sl_customization(cm)\nend\n",
+        "pathdef.m": "function p = pathdef\np = '';\nend\n",
+        "matlabrc.m": "% Startup.\nx = 1;\n",
+        "rtwmakecfg.m": "function c = rtwmakecfg\nc = [];\nend\n",
+        "startup.m": "% Start up.\nx = 1;\n",
+    }
+    write_project(
+        tmp_path,
+        files,
+        "Index\n=====\n\n.. mat:autofolder:: ./\n   :members:\n\n"
+        ".. mat:autoscript:: Contents.m\n",
+    )
+    app = make_app(srcdir=tmp_path)
+    app.build()
+
+    assert sorted(index_by_ref(app)) == sorted(files)
+    html = (app.outdir / "index.html").read_text()
+    assert "Start up." in html
+    # Documented only when named explicitly.
+    assert "Root Toolbox" in html
+    for hidden in ("Library.", "Startup.", "mat-slblocks.m", "mat-pathdef.m",
+                   "mat-rtwmakecfg.m", "mat-sl_customization.m"):
+        assert hidden not in html
+    # No mat.no_code (Contents.m) or mat.not_callable (+for/contents.m).
+    assert "WARNING" not in app.warning.getvalue()
+
+
+# --- Docstring position (Section 2.7) -----------------------------------------
+
+# name: (file lines, {object: MATLAB R2026a ``help`` text or None}). Verified
+# with ``help`` on these exact files; HEAD before Phase 4 matched 12 of 29.
+HELP_CASES = {
+    "fBefore": (
+        ["% fBefore LEAD", "% second line", "function fBefore", "x = 1;", "end"],
+        {"": "fBefore LEAD\nsecond line"},
+    ),
+    "fAfter": (
+        ["function fAfter", "% fAfter TRAIL", "% second line", "x = 1;", "end"],
+        {"": "fAfter TRAIL\nsecond line"},
+    ),
+    "fBoth": (
+        ["% fBoth LEAD", "function fBoth", "% fBoth TRAIL", "end"],
+        {"": "fBoth LEAD"},
+    ),
+    "fBlankLead": (
+        ["% fBlankLead LEAD", "", "function fBlankLead", "end"],
+        {"": "fBlankLead LEAD"},
+    ),
+    "fBlankBoth": (
+        ["% fBlankBoth LEAD", "", "function fBlankBoth", "% fBlankBoth TRAIL", "end"],
+        {"": "fBlankBoth LEAD"},
+    ),
+    "fBlankAfter": (
+        ["function fBlankAfter", "", "% fBlankAfter TRAIL", "x = 1;", "end"],
+        {"": "fBlankAfter TRAIL"},
+    ),
+    "fBothBlankAfter": (
+        ["% fBBA LEAD", "function fBothBlankAfter", "", "% fBBA TRAIL", "end"],
+        {"": "fBBA LEAD"},
+    ),
+    "fTwoLead": (
+        ["% fTwoLead FIRST", "", "% fTwoLead SECOND", "function fTwoLead", "end"],
+        {"": "fTwoLead FIRST"},
+    ),
+    "fCopyright": (
+        ["% fCopy LEAD", "function fCopyright", "% fCopy TRAIL", "", "% (c)", "end"],
+        {"": "fCopy LEAD"},
+    ),
+    "fCodeFirst": (
+        ["function fCodeFirst", "x = 1;", "% fCodeFirst LATE", "end"],
+        {"": None},
+    ),
+    "fBlankLines": (
+        ["", "", "% fBlankLines LEAD", "", "", "function fBlankLines", "end"],
+        {"": "fBlankLines LEAD"},
+    ),
+    "fArgsAfter": (
+        ["function fArgsAfter(x)", "arguments", "x double", "end", "% AFTER", "end"],
+        {"": "AFTER"},
+    ),
+    "fArgsBefore": (
+        ["function fArgsBefore(x)", "% BEFORE", "arguments", "x double", "end", "end"],
+        {"": "BEFORE"},
+    ),
+    "fLeadArgs": (
+        ["% LEAD", "function fLeadArgs(x)", "% TRAIL", "arguments", "x", "end", "end"],
+        {"": "LEAD"},
+    ),
+    "fCont": (
+        ["function y = fCont(a, ...", "    b)", "% fCont TRAIL", "y = a;", "end"],
+        {"": "fCont TRAIL"},
+    ),
+    "fNoEnd": (
+        ["% fNoEnd LEAD", "function fNoEnd", "% fNoEnd TRAIL", "x = 1;"],
+        {"": "fNoEnd LEAD"},
+    ),
+    "fInline": (
+        ["function fInline % INLINE", "% fInline NEXT", "end"],
+        {"": "fInline NEXT"},
+    ),
+    "fLeadInline": (
+        ["% fLeadInline LEAD", "function fLeadInline % INLINE", "end"],
+        {"": "fLeadInline LEAD"},
+    ),
+    "fInlineBlank": (
+        ["function fInlineBlank % INLINE", "", "% fInlineBlank HELP", "end"],
+        {"": "fInlineBlank HELP"},
+    ),
+    "CInlineBlank": (
+        ["classdef CInlineBlank % INLINE", "", "% CInlineBlank HELP", "end"],
+        {"": "CInlineBlank HELP"},
+    ),
+    "CBefore": (["% CBefore LEAD", "classdef CBefore", "end"], {"": "CBefore LEAD"}),
+    "CAfter": (["classdef CAfter", "% CAfter TRAIL", "end"], {"": "CAfter TRAIL"}),
+    "CBoth": (
+        ["% CBoth LEAD", "classdef CBoth", "% CBoth TRAIL", "end"],
+        {"": "CBoth LEAD"},
+    ),
+    "CBlankBoth": (
+        [
+            "% CBlankBoth LEAD", "", "classdef CBlankBoth", "",
+            "% CBlankBoth TRAIL", "end",
+        ],
+        {"": "CBlankBoth LEAD"},
+    ),
+    "CAfterBlank": (
+        [
+            "classdef CAfterBlank", "", "% CAfterBlank TRAIL", "methods",
+            "function mAfterBlank(~)", "", "% mAfterBlank TRAIL", "end",
+            "end", "end",
+        ],
+        {"": "CAfterBlank TRAIL", "mAfterBlank": "mAfterBlank TRAIL"},
+    ),
+    "CMeth": (
+        [
+            "classdef CMeth", "% CMeth TRAIL", "methods",
+            "% mBefore LEAD", "function mBefore(~)", "end",
+            "function mAfter(~)", "% mAfter TRAIL", "end",
+            "% mBoth LEAD", "function mBoth(~)", "% mBoth TRAIL", "end",
+            "% mBlank LEAD", "", "function mBlank(~)", "% mBlank TRAIL", "end",
+            "end", "end",
+        ],
+        {
+            "": "CMeth TRAIL",
+            "mBefore": None,
+            "mAfter": "mAfter TRAIL",
+            "mBoth": "mBoth TRAIL",
+            "mBlank": "mBlank TRAIL",
+        },
+    ),
+}  # fmt: skip
+
+
+def _help(docstring):
+    return (docstring or "").strip() or None
+
+
+@pytest.mark.parametrize("name", list(HELP_CASES))
+def test_docstring_matches_matlab_help(tmp_path, name):
+    lines, expected = HELP_CASES[name]
+    mfile = tmp_path / f"{name}.m"
+    mfile.write_text("\n".join(lines) + "\n")
+    obj = mat_types.MatObject.parse_mfile(mfile, name, "./")
+    got = {"": _help(obj.docstring)}
+    for meth in expected.keys() - {""}:
+        got[meth] = _help(obj.methods[meth].docstring)
+    assert got == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("% fCrlf LEAD\r\n% second\r\nfunction fCrlf\r\nend\r\n", "fCrlf LEAD\nsecond"),
+        ("function f\r\n% f TRAIL\r\n% second\r\nend\r\n", "f TRAIL\nsecond"),
+    ],
+)
+def test_crlf_docstring_keeps_all_lines(tmp_path, text, expected):
+    # R2026a help shows both lines; tree-sitter-matlab splits blocks at CRLF.
+    mfile = tmp_path / "f.m"
+    mfile.write_bytes(text.encode())
+    assert mat_types.MatObject.parse_mfile(mfile, "f", "./").docstring == expected
+
+
+def test_application_type_and_m_before_mlapp(make_app, rootdir, tmp_path):
+    app_file = (rootdir / "test_data" / "Application.mlapp").read_bytes()
+    (tmp_path / "Application.mlapp").write_bytes(app_file)
+    (tmp_path / "both.mlapp").write_bytes(app_file)
+    write_project(
+        tmp_path,
+        {"both.m": "function both\n% The .m file.\nend\n"},
+        "Index\n=====\n\n.. mat:autofunction:: both.m\n",
+    )
+    app = make_app(srcdir=tmp_path)
+    app.build()
+    assert {ref: e["type"] for ref, e in index_by_ref(app).items()} == {
+        "Application.mlapp": "application",
+        "both.mlapp": "application",
+        "both.m": "function",
+    }
+    # A name without extension tries .m before .mlapp.
+    assert isinstance(mat_types.MatObject.matlabify("both"), mat_types.MatFunction)
+    assert "The .m file." in (app.outdir / "index.html").read_text()
+
+
+def test_docstring_positions_render(make_app, tmp_path):
+    files = {
+        "dp_before.m": "% dp_before LEAD\nfunction dp_before\nend\n",
+        "dp_after.m": "function dp_after\n\n% dp_after TRAIL\nend\n",
+        "dp_both.m": "% dp_both LEAD\n\nfunction dp_both\n% dp_both TRAIL\nend\n",
+        "DpClass.m": "\n".join(HELP_CASES["CMeth"][0]).replace("CMeth", "DpClass"),
+        "DpLead.m": "% DpLead LEAD\nclassdef DpLead\n% DpLead TRAIL\nend\n",
+    }
+    write_project(
+        tmp_path,
+        files,
+        "Index\n=====\n\n"
+        + "".join(f".. mat:autofunction:: dp_{k}\n\n" for k in ("before", "after"))
+        + ".. mat:autofunction:: dp_both\n\n"
+        + ".. mat:autoclass:: DpClass\n   :members:\n\n.. mat:autoclass:: DpLead\n",
+    )
+    app = make_app(srcdir=tmp_path)
+    app.build()
+    html = (app.outdir / "index.html").read_text()
+    for shown in ("dp_before LEAD", "dp_after TRAIL", "dp_both LEAD", "DpLead LEAD",
+                  "DpClass TRAIL", "mAfter TRAIL", "mBoth TRAIL", "mBlank TRAIL"):
+        assert shown in html
+    for hidden in ("dp_both TRAIL", "DpLead TRAIL", "mBefore LEAD", "mBoth LEAD",
+                   "mBlank LEAD"):
+        assert hidden not in html
+    assert 'id="mat-DpClass.m.mBefore"' in html
+    assert "WARNING" not in app.warning.getvalue()
